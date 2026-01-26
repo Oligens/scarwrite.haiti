@@ -9,8 +9,7 @@ import type { Account, AccountingEntry } from "@/lib/database";
 import { downloadPDF } from "@/lib/pdf";
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { TransactionForm } from "@/components/TransactionForm";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+// Manual transaction form removed — transactions are now recorded automatically
 
 interface AccountLedger {
   code: string;
@@ -28,7 +27,7 @@ export default function Accounting() {
   const [trial, setTrial] = useState<Array<{ account_code: string; account_name: string; debit: number; credit: number }>>([]);
   const [journal, setJournal] = useState<AccountingEntry[]>([]);
   const [ledgers, setLedgers] = useState<AccountLedger[]>([]);
-  const [showExpense, setShowExpense] = useState(false);
+  
   const [section, setSection] = useState<'journal' | 'ledger' | 'bilan' | 'resultat'>('journal');
   
   // NEW: Filters
@@ -273,12 +272,7 @@ export default function Accounting() {
           >
             ⬇️ Export PDF
           </Button>
-          <Button
-            onClick={() => setShowExpense(true)}
-            className="bg-yellow-500 text-navy-deep hover:bg-yellow-400 font-semibold"
-          >
-            ✏️ Nouvelle opération
-          </Button>
+          {/* Manual transaction entry removed — all operations now generate automatic accounting entries */}
         </div>
 
         {/* NEW: Filters Panel */}
@@ -425,13 +419,13 @@ export default function Accounting() {
                     ) : (
                       journal.map((j, idx) => (
                         <tr key={idx} className="border-b hover:bg-yellow-50">
-                          <td className="p-3">{j.journal_date}</td>
-                          <td className="p-3 font-mono">{j.account_code}</td>
-                          <td className="p-3">{j.description || '—'}</td>
-                          <td className="p-3 text-right font-mono text-blue-700 font-bold">
+                          <td className="p-3 text-black">{j.journal_date}</td>
+                          <td className="p-3 font-mono text-black">{j.account_code}</td>
+                          <td className="p-3 text-black">{j.description || '—'}</td>
+                          <td className="p-3 text-right font-mono text-black font-bold">
                             {j.debit > 0 ? j.debit.toFixed(2) : ''}
                           </td>
-                          <td className="p-3 text-right font-mono text-red-700 font-bold">
+                          <td className="p-3 text-right font-mono text-black font-bold">
                             {j.credit > 0 ? j.credit.toFixed(2) : ''}
                           </td>
                         </tr>
@@ -622,12 +616,7 @@ export default function Accounting() {
         )}
       </div>
 
-      <Dialog open={showExpense} onOpenChange={setShowExpense}>
-        <DialogContent>
-          <DialogTitle>Nouvelle Opération</DialogTitle>
-          <TransactionForm onClose={() => setShowExpense(false)} onSuccess={() => setShowExpense(false)} />
-        </DialogContent>
-      </Dialog>
+      {/* Manual transaction dialog removed to prevent manual journal inputs. Use the app flows (Ventes, Réapprovisionnement, Transferts, Paiements) which create automatic journal entries. */}
     </AppLayout>
   );
 }

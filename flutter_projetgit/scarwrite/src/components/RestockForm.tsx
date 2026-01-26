@@ -122,6 +122,10 @@ export function RestockForm({ product, onClose, onSuccess }: RestockFormProps) {
       }> = [];
 
       // DEBIT 31 (Stocks marchandises) - Full restocked value
+      // For cash purchases (not credit), we will consider the paid amount = totalCost
+      const effectivePaid = isCredit ? paid : totalCost;
+      const effectiveDebt = Math.round((totalCost - effectivePaid) * 100) / 100;
+
       entries.push({
         journal_date: date,
         transaction_type: "product_restock",
@@ -131,43 +135,42 @@ export function RestockForm({ product, onClose, onSuccess }: RestockFormProps) {
         credit: 0,
         description: `Réapprovisionnement: ${product.name} (${qty} unités @ ${cost.toFixed(2)} ${settings.currency_symbol})`,
       });
-
-      // CREDIT 53 (Caisse) - Amount paid immediately
-      if (paid > 0) {
+      // CREDIT 53 (Caisse) - Amount paid immediately (for cash purchases this equals totalCost)
+      if (effectivePaid > 0) {
         entries.push({
           journal_date: date,
           transaction_type: "product_restock",
           account_code: "53",
           account_name: "Caisse",
           debit: 0,
-          credit: paid,
+          credit: effectivePaid,
           description: `Paiement réapprovisionnement: ${product.name} (comptant)`,
         });
       }
 
-      // CREDIT 401 (Fournisseurs) - If credit purchase
-      if (isCredit && debt > 0) {
+      // CREDIT 401 (Fournisseurs) - If credit purchase (debt > 0)
+      if (isCredit && effectiveDebt > 0) {
         entries.push({
           journal_date: date,
           transaction_type: "product_restock",
           account_code: "401",
           account_name: "Fournisseurs",
           debit: 0,
-          credit: debt,
+          credit: effectiveDebt,
           description: `Dette réapprovisionnement: ${product.name} (à crédit)`,
         });
 
-        // Update third-party quick ledger
+        // Update third-party quick ledger and suppliers table only for credit purchases
         if (supplierName.trim()) {
-          await addOrUpdateThirdParty(supplierName.trim(), "supplier", debt);
+          await addOrUpdateThirdParty(supplierName.trim(), "supplier", effectiveDebt);
           // Also add or update in suppliers table so it appears on Suppliers page
           try {
             const existing = await getSuppliers();
             const found = existing.find(s => s.name.toLowerCase() === supplierName.trim().toLowerCase());
             if (found) {
-              await updateSupplier(found.id!, { amount_owed: found.amount_owed + debt, due_date: date, status: 'active' });
+              await updateSupplier(found.id!, { amount_owed: found.amount_owed + effectiveDebt, due_date: date, status: 'active' });
             } else {
-              await addSupplier({ name: supplierName.trim(), amount_owed: debt, due_date: date, status: 'active' });
+              await addSupplier({ name: supplierName.trim(), amount_owed: effectiveDebt, due_date: date, status: 'active' });
             }
           } catch (err) {
             console.warn('Impossible de créer/mettre à jour fournisseur dans suppliers table:', err);

@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { DialogContent, DialogTitle, Dialog } from "@/components/ui/dialog";
-import { TransactionForm } from "@/components/TransactionForm";
+// Manual transaction form removed — accounting entries are generated automatically by operations
 import { getTrialBalance, getJournalEntriesByDate } from "@/lib/storage";
 import type { AccountingEntry } from "@/lib/database";
 
@@ -13,7 +12,7 @@ interface TrialBalanceEntry {
 }
 
 export default function Accounting(): JSX.Element {
-  const [showExpense, setShowExpense] = useState(false);
+ 
   const [trial, setTrial] = useState<TrialBalanceEntry[]>([]);
   const [journal, setJournal] = useState<AccountingEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -54,12 +53,7 @@ export default function Accounting(): JSX.Element {
       <div className="p-6">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl font-bold">Comptabilité</h1>
-          <button
-            onClick={() => setShowExpense(true)}
-            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-          >
-            Nouvelle Opération
-          </button>
+          {/* Manual transaction entry removed — use app flows to record transactions */}
         </div>
 
         <div className="space-y-8">
@@ -125,11 +119,11 @@ export default function Accounting(): JSX.Element {
                   {journal.length > 0 ? (
                     journal.map((j) => (
                       <tr key={j.id} className="border-b border-slate-200 hover:bg-purple-50">
-                        <td className="text-slate-800 text-sm py-2">{j.journal_date}</td>
-                        <td className="text-slate-800 text-sm py-2">{j.account_code || '—'}</td>
-                        <td className="text-right text-slate-800 text-sm py-2 font-mono">{(j.debit || 0).toFixed(2)}</td>
-                        <td className="text-right text-slate-800 text-sm py-2 font-mono">{(j.credit || 0).toFixed(2)}</td>
-                        <td className="text-slate-800 text-sm py-2">{j.description || '—'}</td>
+                        <td className="text-black text-sm py-2">{j.journal_date}</td>
+                        <td className="text-black text-sm py-2">{j.account_code || '—'}</td>
+                        <td className="text-right text-black text-sm py-2 font-mono">{(j.debit || 0).toFixed(2)}</td>
+                        <td className="text-right text-black text-sm py-2 font-mono">{(j.credit || 0).toFixed(2)}</td>
+                        <td className="text-black text-sm py-2">{j.description || '—'}</td>
                       </tr>
                     ))
                   ) : (
@@ -209,12 +203,7 @@ export default function Accounting(): JSX.Element {
           </div>
         </div>
 
-        <Dialog open={showExpense} onOpenChange={setShowExpense}>
-          <DialogContent>
-            <DialogTitle>Nouvelle Opération</DialogTitle>
-            <TransactionForm onClose={() => setShowExpense(false)} onSuccess={() => setShowExpense(false)} />
-          </DialogContent>
-        </Dialog>
+        {/* Manual transaction dialog removed to prevent manual journal entries. All transactions are recorded automatically. */}
       </div>
     </AppLayout>
   );

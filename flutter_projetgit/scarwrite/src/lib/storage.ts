@@ -2139,10 +2139,28 @@ export const getRetainedEarnings = async (fromDate: string, toDate: string): Pro
 
 export const getJournalEntriesByDate = async (startDate: string, endDate: string): Promise<AccountingEntry[]> => {
   try {
-    const rows: StoredAccountingEntry[] = await db.accounting_entries
-      .where('journal_date')
-      .between(startDate, endDate)
-      .toArray();
+    // Normalize date bounds to include full days when inputs are date-only (YYYY-MM-DD)
+    const normalizeStart = (d: string) => d.length === 10 ? `${d}T00:00:00` : d;
+    const normalizeEnd = (d: string) => d.length === 10 ? `${d}T23:59:59` : d;
+    const lower = normalizeStart(startDate);
+    const upper = normalizeEnd(endDate);
+
+    // Use indexed range by journal_date when possible, fallback to full scan if needed
+    let rows: StoredAccountingEntry[] = [];
+    try {
+      rows = await db.accounting_entries
+        .where('journal_date')
+        .between(lower, upper, true, true)
+        .toArray();
+    } catch (err) {
+      // If index-based range fails for any reason, fallback to full table scan
+      console.warn('Range query failed, falling back to full scan for journal entries:', err);
+      const all = await db.accounting_entries.toArray();
+      rows = all.filter(r => {
+        const jd = r.journal_date || '';
+        return jd >= lower && jd <= upper;
+      });
+    }
     // decrypt payloads
     return rows.map(r => {
       const payload = r.encrypted_payload ? decryptObject(r.encrypted_payload) as { transaction_id?: string; account_code?: string; account_name?: string; debit?: number; credit?: number; description?: string } : null;
