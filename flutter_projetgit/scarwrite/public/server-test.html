@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ScarWrite - Test Serveur</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+        }
+        .container {
+            text-align: center;
+            padding: 40px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 20px;
+            border: 2px solid #fbbf24;
+            backdrop-filter: blur(10px);
+            max-width: 600px;
+        }
+        .logo {
+            width: 120px;
+            height: 120px;
+            margin: 0 auto 30px;
+            background: rgba(251, 191, 36, 0.1);
+            border: 2px solid #fbbf24;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 48px;
+            font-weight: bold;
+            color: #fbbf24;
+        }
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 15px;
+            color: #fbbf24;
+        }
+        .subtitle {
+            font-size: 1.2em;
+            color: #cbd5e1;
+            margin-bottom: 30px;
+        }
+        .status {
+            background: #10b981;
+            color: white;
+            padding: 15px 25px;
+            border-radius: 10px;
+            margin: 20px 0;
+            font-weight: bold;
+            display: inline-block;
+        }
+        .info {
+            background: rgba(59, 130, 246, 0.1);
+            border-left: 4px solid #3b82f6;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            text-align: left;
+        }
+        .info p {
+            margin: 10px 0;
+            color: #cbd5e1;
+        }
+        .next-button {
+            background: #fbbf24;
+            color: #0f172a;
+            border: none;
+            padding: 12px 30px;
+            font-size: 1em;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: all 0.3s;
+        }
+        .next-button:hover {
+            background: #d97706;
+            transform: scale(1.05);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">💼</div>
+        <h1>ScarWrite</h1>
+        <p class="subtitle">Gestion Financière Premium</p>
+        
+        <div class="status">✅ Serveur Actif!</div>
+        
+        <div class="info">
+            <p><strong>📍 URL actuelle:</strong> http://localhost:8080</p>
+            <p><strong>🚀 Statut:</strong> Le serveur Vite est en cours d'exécution</p>
+            <p><strong>⏳ Temps restant:</strong> L'application React se compile...</p>
+        </div>
+        
+        <p style="color: #cbd5e1; margin: 20px 0;">
+            Veuillez patienter 20-30 secondes pour que le bundle React se compile complètement.
+        </p>
+        
+        <button class="next-button" onclick="window.location.reload()">
+            ⟳ Rafraîchir la Page
+        </button>
+        
+        <p style="color: #94a3b8; font-size: 0.9em; margin-top: 30px;">
+            Si vous voyez ce message pendant plus de 60 secondes, vérifiez la console pour les erreurs.
+        </p>
+    </div>
+
+    <script>
+        // Recharger automatiquement la page toutes les 5 secondes jusqu'au démarrage de React
+        setTimeout(() => {
+            console.log('Vérification du statut du serveur...');
+            window.location.reload();
+        }, 5000);
+    </script>
+</body>
+</html>

@@ -1,0 +1,316 @@
+@import "@fontsource/playfair-display/400.css";
+@import "@fontsource/playfair-display/500.css";
+@import "@fontsource/playfair-display/600.css";
+@import "@fontsource/playfair-display/700.css";
+@import "@fontsource/dm-sans/400.css";
+@import "@fontsource/dm-sans/500.css";
+@import "@fontsource/dm-sans/600.css";
+@import "@fontsource/dm-sans/700.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ScarWrite Design System - Premium Financial Theme */
+/* Navy Blue + White + Gold + Silver */
+
+@layer base {
+  :root {
+    /* Dark theme background - Navy blue deep */
+    --background: 220 30% 12%;
+    --foreground: 0 0% 98%;
+
+    /* White card surfaces */
+    --card: 0 0% 100%;
+    --card-foreground: 220 30% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 30% 15%;
+
+    /* Gold primary (#D4AF37) */
+    --primary: 43 74% 49%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Navy secondary */
+    --secondary: 220 30% 18%;
+    --secondary-foreground: 0 0% 98%;
+
+    /* Silver muted */
+    --muted: 220 15% 90%;
+    --muted-foreground: 220 10% 45%;
+
+    /* Gold accent */
+    --accent: 43 74% 49%;
+    --accent-foreground: 0 0% 100%;
+
+    /* Destructive red */
+    --destructive: 0 65% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Borders - silver tone */
+    --border: 220 15% 85%;
+    --input: 220 15% 85%;
+    --ring: 43 74% 49%;
+
+    --radius: 0.75rem;
+
+    /* Custom tokens for premium effects */
+    --gold: 43 74% 49%;
+    --gold-light: 43 80% 60%;
+    --gold-dark: 43 70% 35%;
+    --navy: 220 30% 12%;
+    --navy-light: 220 25% 20%;
+    --navy-deep: 220 35% 8%;
+    --silver: 220 10% 75%;
+    --silver-light: 220 10% 92%;
+
+    /* Sidebar - Navy gradient theme */
+    --sidebar-background: linear-gradient(180deg, hsl(220 35% 8%) 0%, hsl(220 30% 12%) 100%);
+    --sidebar-foreground: 0 0% 98%;
+    --sidebar-primary: 43 74% 49%;
+    --sidebar-primary-foreground: 220 30% 12%;
+    --sidebar-accent: 220 30% 15%;
+    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-border: 220 25% 18%;
+    --sidebar-ring: 43 74% 49%;
+  }
+
+  .dark {
+    /* Same dark theme for dark mode */
+    --background: 220 30% 12%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 30% 15%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 30% 15%;
+    --primary: 43 74% 49%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 30% 18%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 220 15% 90%;
+    --muted-foreground: 220 10% 45%;
+    --accent: 43 74% 49%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 65% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 15% 85%;
+    --input: 220 15% 85%;
+    --ring: 43 74% 49%;
+    --sidebar-background: linear-gradient(180deg, hsl(220 35% 8%) 0%, hsl(220 30% 12%) 100%);
+    --sidebar-foreground: 0 0% 98%;
+    --sidebar-primary: 43 74% 49%;
+    --sidebar-primary-foreground: 220 30% 12%;
+    --sidebar-accent: 220 30% 15%;
+    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-border: 220 25% 18%;
+    --sidebar-ring: 43 74% 49%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display;
+  }
+}
+
+@layer utilities {
+  /* Gold gradient text */
+  .text-gradient-gold {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, hsl(43 80% 60%) 0%, hsl(43 74% 49%) 50%, hsl(43 70% 35%) 100%);
+  }
+
+  /* Premium white card with subtle shadow */
+  .card-premium {
+    @apply relative overflow-hidden rounded-xl bg-card border border-border;
+    box-shadow: 
+      0 4px 20px -4px hsl(220 30% 12% / 0.15),
+      0 1px 3px hsl(220 30% 12% / 0.08);
+  }
+
+  /* Gold bordered card */
+  .card-gold-border {
+    @apply relative overflow-hidden rounded-xl bg-card;
+    box-shadow: 
+      0 0 0 1px hsl(var(--gold) / 0.3),
+      0 4px 20px -4px hsl(220 30% 12% / 0.15);
+  }
+
+  /* Gold shimmer animation */
+  .shimmer-gold {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .shimmer-gold::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      hsl(var(--gold) / 0.05) 50%,
+      transparent 100%
+    );
+    animation: shimmer 3s infinite;
+  }
+
+  @keyframes shimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+  }
+
+  /* Subtle hover lift */
+  .hover-lift {
+    @apply transition-all duration-300;
+  }
+
+  .hover-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: 
+      0 8px 30px -8px hsl(var(--gold) / 0.25),
+      0 0 0 1px hsl(var(--gold) / 0.2);
+  }
+
+  /* Gold underline accent */
+  .underline-gold {
+    @apply relative;
+  }
+
+  .underline-gold::after {
+    content: '';
+    position: absolute;
+    bottom: -4px;
+    left: 0;
+    width: 40px;
+    height: 2px;
+    background: linear-gradient(90deg, hsl(var(--gold)) 0%, transparent 100%);
+  }
+
+  /* Revenue number styling - navy text */
+  .revenue-number {
+    @apply font-display text-3xl font-bold tracking-tight text-card-foreground;
+  }
+
+  /* Revenue number with gold accent */
+  .revenue-number-gold {
+    @apply font-display text-3xl font-bold tracking-tight;
+    background: linear-gradient(135deg, hsl(43 80% 50%) 0%, hsl(43 74% 40%) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Glass morphism effect */
+  .glass {
+    @apply backdrop-blur-xl;
+    background: hsl(var(--card) / 0.9);
+  }
+
+  /* Button with gold border */
+  .btn-gold-outline {
+    @apply bg-card border-2 border-primary text-card-foreground hover:bg-primary/10 hover:shadow-lg transition-all duration-200 cursor-pointer;
+  }
+
+  /* Force black text in inputs */
+  .input-black input,
+  .input-black textarea {
+    @apply text-black;
+  }
+
+  input[type="text"],
+  input[type="number"],
+  input[type="email"],
+  textarea {
+    @apply text-black;
+  }
+
+  /* Sidebar active item */
+  .sidebar-item-active {
+    @apply bg-sidebar-accent border-l-2 border-primary;
+  }
+
+  /* Navy background pattern */
+  .bg-navy-pattern {
+    background-color: hsl(220 35% 8%);
+    background-image: 
+      radial-gradient(ellipse at 20% 20%, hsl(43 74% 49% / 0.03) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 80%, hsl(43 74% 49% / 0.02) 0%, transparent 50%);
+  }
+
+  /* Star dust texture effect */
+  .bg-star-dust {
+    background-color: hsl(220 30% 12%);
+    background-image: 
+      radial-gradient(2px 2px at 20px 30px, hsl(43 74% 49% / 0.15), transparent),
+      radial-gradient(2px 2px at 40px 70px, hsl(43 74% 49% / 0.1), transparent),
+      radial-gradient(1px 1px at 90px 40px, hsl(43 74% 49% / 0.12), transparent),
+      radial-gradient(1px 1px at 130px 80px, hsl(43 74% 49% / 0.08), transparent),
+      radial-gradient(2px 2px at 160px 30px, hsl(43 74% 49% / 0.11), transparent);
+    background-repeat: repeat;
+    background-size: 200px 100px;
+  }
+
+  /* Premium card with soft shadow */
+  .card-premium {
+    @apply bg-card border border-border rounded-xl shadow-lg;
+    box-shadow: 0 4px 20px hsl(220 30% 12% / 0.08), 0 1px 3px hsl(220 30% 12% / 0.12);
+  }
+
+  /* Financial amount styling */
+  .financial-amount {
+    @apply font-bold text-black;
+  }
+
+  /* Force black text on white background for all form inputs */
+  input, select, textarea {
+    color: black !important;
+    background-color: white !important;
+  }
+
+  input::placeholder, textarea::placeholder {
+    color: #666 !important;
+  }
+
+  /* Ensure select options are visible */
+  select option {
+    color: black !important;
+    background-color: white !important;
+  }
+
+/* Custom scrollbar - Navy theme */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--background));
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--silver));
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--gold) / 0.7);
+}
+
+/* Z-index utilities for mobile menu */
+.z-9999 {
+  z-index: 9999 !important;
+}
+
+.z-50000 {
+  z-index: 50000 !important;
+}
+}
