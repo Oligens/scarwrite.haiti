@@ -197,10 +197,11 @@ export function SalesForm({ date, onClose, onSuccess }: SalesFormProps) {
             Aucun produit disponible. Ajoutez d'abord des produits.
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form id="sales-form" onSubmit={handleSubmit} className="">
+            <div className="max-h-[70vh] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-white">
             {/* Recherche d'article (produit ou service) */}
             <div className="space-y-2">
-              <Label className="font-semibold text-white">🔍 Rechercher un article</Label>
+              <Label className="font-semibold text-black">🔍 Rechercher un article</Label>
               <div className="relative">
                 <img src="/scarwrite.png" className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" alt="Logo" />
                 <Input
@@ -208,14 +209,14 @@ export function SalesForm({ date, onClose, onSuccess }: SalesFormProps) {
                   placeholder="Rechercher..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="bg-muted/50 border-border pl-10 placeholder:text-black placeholder-opacity-80"
+                  className="bg-muted/50 border-border pl-10 placeholder:text-black placeholder-opacity-80 text-black"
                 />
               </div>
             </div>
 
             {/* Sélection produit/service */}
             <div className="space-y-2">
-              <Label className="font-semibold text-white">📦 Produit / Service</Label>
+              <Label className="font-semibold text-black">📦 Produit / Service</Label>
               <Select value={selectedProduct} onValueChange={setSelectedProduct}>
                 <SelectTrigger className="bg-white border-slate-300 text-slate-900 font-semibold hover:border-slate-400">
                   <SelectValue placeholder="Sélectionner un produit" className="text-slate-900 font-bold" />
@@ -242,7 +243,7 @@ export function SalesForm({ date, onClose, onSuccess }: SalesFormProps) {
                 {/* Prix et (si produit) stock */}
                 <div className="grid grid-cols-1 gap-4">
                   <div className="space-y-2">
-                    <Label className="font-semibold text-white text-sm">Prix unitaire</Label>
+                    <Label className="font-semibold text-black text-sm">Prix unitaire</Label>
                     <div className="rounded-lg bg-muted/30 p-2 text-center">
                       <span className="font-bold text-black">{formatCurrency(unitPrice)}</span>
                     </div>
@@ -259,7 +260,7 @@ export function SalesForm({ date, onClose, onSuccess }: SalesFormProps) {
 
                 {/* Quantité */}
                 <div className="space-y-2">
-                  <Label className="font-semibold text-white">📊 Quantité à vendre</Label>
+                  <Label className="font-semibold text-black">📊 Quantité à vendre</Label>
                   <Input
                     type="number"
                     min={1}
@@ -272,7 +273,7 @@ export function SalesForm({ date, onClose, onSuccess }: SalesFormProps) {
                         setQuantity(Math.min(Math.max(val, 1), quantityAvailable));
                       }
                     }}
-                    className="bg-background border-slate-400 text-white"
+                    className="bg-background border-slate-400 text-black"
                   />
                 </div>
 
@@ -293,7 +294,7 @@ export function SalesForm({ date, onClose, onSuccess }: SalesFormProps) {
                     checked={isCredit}
                     onCheckedChange={(checked) => setIsCredit(checked as boolean)}
                   />
-                  <Label htmlFor="credit" className="cursor-pointer flex-1 font-semibold text-white">
+                  <Label htmlFor="credit" className="cursor-pointer flex-1 font-semibold text-black">
                     ✏️ Vente à crédit
                   </Label>
                 </div>
@@ -323,7 +324,7 @@ export function SalesForm({ date, onClose, onSuccess }: SalesFormProps) {
                   </div>
                 )}
                 <div className="space-y-2 mt-2">
-                  <Label className="font-semibold text-white">Méthode de paiement</Label>
+                  <Label className="font-semibold text-black">Méthode de paiement</Label>
                   <div className="flex gap-3">
                     <Button variant={paymentMethod === 'cash' ? 'default' : 'outline'} onClick={() => setPaymentMethod('cash')}>Espèces</Button>
                     <Button variant={paymentMethod === 'digital' ? 'default' : 'outline'} onClick={() => setPaymentMethod('digital')}>Argent Numérique</Button>
@@ -358,13 +359,17 @@ export function SalesForm({ date, onClose, onSuccess }: SalesFormProps) {
               </>
             )}
 
-            <Button
-              type="submit"
-              disabled={!selectedProduct || (selectedProductData && !selectedProductData.is_service && quantity > quantityAvailable)}
-              className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
-            >
-              Enregistrer la vente
-            </Button>
+            </div>
+            <div className="mt-4">
+              <Button
+                type="submit"
+                form="sales-form"
+                disabled={!selectedProduct || (selectedProductData && !selectedProductData.is_service && quantity > quantityAvailable)}
+                className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
+              >
+                Enregistrer la vente
+              </Button>
+            </div>
           </form>
         )}
       </div>

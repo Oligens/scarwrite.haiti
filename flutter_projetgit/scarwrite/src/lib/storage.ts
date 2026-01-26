@@ -376,6 +376,7 @@ export const addService = async (name: string, unitPrice: number, service_fee_pe
     service_fee_percentage: service_fee_percentage,
     created_at: now,
     updated_at: now,
+    entity_type: getActiveEntity(),
   };
 
   try {

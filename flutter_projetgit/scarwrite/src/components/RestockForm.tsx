@@ -204,26 +204,24 @@ export function RestockForm({ product, onClose, onSuccess }: RestockFormProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy-deep/80 backdrop-blur-sm">
-      <div className="card-premium w-full max-w-md p-6 animate-scale-in max-h-[90vh] overflow-y-auto bg-white">
+      <div className="card-premium w-full max-w-md p-6 animate-scale-in max-h-[90vh] bg-white">
         {/* Header */}
-        <div className="mb-6 flex items-center justify-between">
-          <h2 className="font-display text-xl font-semibold text-navy-deep">
-            Réapprovisionnement
-          </h2>
-          <Button variant="ghost" size="icon" onClick={onClose}>
-            <X className="h-5 w-5" />
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="font-display text-xl font-semibold text-navy-deep">Réapprovisionnement</h2>
+          <Button className="bg-[#d4af37] text-black hover:brightness-90" size="icon" onClick={onClose}>
+            <X className="h-5 w-5 text-black" />
           </Button>
         </div>
 
-        {/* Product Info */}
-        <div className="mb-6 rounded-lg bg-yellow-50 p-4 border border-yellow-200">
-          <p className="font-semibold text-navy-deep">{product.name}</p>
-          <p className="text-sm text-gray-600">
-            Quantité actuelle: <span className="font-bold text-navy-deep">{product.quantity_available} unités</span>
-          </p>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form id="restock-form" onSubmit={handleSubmit} className="flex flex-col h-full">
+          <div className="max-h-[70vh] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-white space-y-5">
+            {/* Product Info */}
+            <div className="rounded-lg bg-yellow-50 p-4 border border-yellow-200">
+              <p className="font-semibold text-navy-deep text-black">{product.name}</p>
+              <p className="text-sm text-gray-600">
+                Quantité actuelle: <span className="font-bold text-navy-deep text-black">{product.quantity_available} unités</span>
+              </p>
+            </div>
           {/* Quantity Added */}
           <div className="space-y-2">
             <Label className="font-semibold text-black">Quantité ajoutée</Label>
@@ -337,14 +335,20 @@ export function RestockForm({ product, onClose, onSuccess }: RestockFormProps) {
             </>
           )}
 
-          {/* Submit Button */}
-          <Button
-            type="submit"
-            disabled={loading || !quantityAdded || !costPrice}
-            className="w-full bg-yellow-500 text-navy-deep hover:bg-yellow-600 font-semibold disabled:opacity-50"
-          >
-            {loading ? "Enregistrement..." : "Enregistrer le réapprovisionnement"}
-          </Button>
+          </div>
+
+          {/* Footer - buttons fixed outside scroll area */}
+          <div className="mt-4 flex gap-2 justify-end">
+            <Button variant="outline" onClick={onClose}>Annuler</Button>
+            <Button
+              type="submit"
+              form="restock-form"
+              disabled={loading || !quantityAdded || !costPrice}
+              className="bg-[#d4af37] text-black hover:brightness-90 font-semibold disabled:opacity-50"
+            >
+              {loading ? "Enregistrement..." : "Enregistrer le réapprovisionnement"}
+            </Button>
+          </div>
         </form>
       </div>
     </div>

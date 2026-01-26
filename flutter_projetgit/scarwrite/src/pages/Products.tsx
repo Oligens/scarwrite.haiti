@@ -423,26 +423,27 @@ export default function Products() {
                   <X className="h-5 w-5" />
                 </Button>
               </div>
+              <form id="service-form" onSubmit={handleSubmitService} className="">
+                <div className="max-h-[70vh] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-white">
+                  <div className="space-y-2">
+                    <Label className="text-black">Nom du service</Label>
+                    <Input value={formServiceName} onChange={e => setFormServiceName(e.target.value)} placeholder="ex: Livraison" className="bg-gray-50 border-gray-300 text-black" />
+                  </div>
 
-              <form onSubmit={handleSubmitService} className="space-y-5">
-                <div className="space-y-2">
-                  <Label className="text-navy-deep">Nom du service</Label>
-                  <Input value={formServiceName} onChange={e => setFormServiceName(e.target.value)} placeholder="ex: Livraison" className="bg-gray-50 border-gray-300 text-navy-deep" />
+                  <div className="space-y-2">
+                    <Label className="text-black">Prix ({settings.currency_symbol})</Label>
+                    <Input type="text" inputMode="decimal" value={formServicePrice} onChange={e => handleServicePriceChange(e.target.value)} placeholder="ex: 50" className="bg-gray-50 border-gray-300 text-black" />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-black">Frais de service (%)</Label>
+                    <Input type="number" value={formServiceFeeService} onChange={e => setFormServiceFeeService(e.target.value)} className="bg-gray-50 border-gray-300 text-black" />
+                  </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label className="text-navy-deep">Prix ({settings.currency_symbol})</Label>
-                  <Input type="text" inputMode="decimal" value={formServicePrice} onChange={e => handleServicePriceChange(e.target.value)} placeholder="ex: 50" className="bg-gray-50 border-gray-300 text-navy-deep" />
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-navy-deep">Frais de service (%)</Label>
-                  <Input type="number" value={formServiceFeeService} onChange={e => setFormServiceFeeService(e.target.value)} className="bg-gray-50 border-gray-300 text-navy-deep" />
-                </div>
-
-                <div className="flex gap-2 justify-end">
+                <div className="flex gap-2 justify-end mt-4">
                   <Button variant="outline" onClick={() => setShowServiceForm(false)}>Annuler</Button>
-                  <Button type="submit" className="bg-yellow-500 text-navy-deep hover:bg-yellow-600">Ajouter le service</Button>
+                  <Button type="submit" form="service-form" className="bg-yellow-500 text-navy-deep hover:bg-yellow-600">Ajouter le service</Button>
                 </div>
               </form>
             </div>
@@ -461,89 +462,88 @@ export default function Products() {
                 <X className="h-5 w-5" />
               </Button>
             </div>
+            <form id="product-form" onSubmit={handleSubmit} className="">
+              <div className="max-h-[70vh] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-white">
+                <div className="space-y-2">
+                  <Label className="text-black">Nom du produit</Label>
+                  <Input
+                    value={formName}
+                    onChange={e => setFormName(e.target.value)}
+                    placeholder="ex: Croissant"
+                    className="bg-gray-50 border-gray-300 text-black"
+                  />
+                </div>
 
-            <form onSubmit={handleSubmit} className="space-y-5">
-              <div className="space-y-2">
-                <Label className="text-black">Nom du produit</Label>
-                <Input
-                  value={formName}
-                  onChange={e => setFormName(e.target.value)}
-                  placeholder="ex: Croissant"
-                  className="bg-gray-50 border-gray-300 text-black"
-                />
+                <div className="space-y-2">
+                  <Label className="text-black">Prix de vente ({settings.currency_symbol})</Label>
+                  <Input
+                    type="text"
+                    inputMode="decimal"
+                    value={formPrice}
+                    onChange={e => handlePriceChange(e.target.value)}
+                    placeholder="ex: 12.5 ou 12,5"
+                    className="bg-gray-50 border-gray-300 text-black"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-black">Prix d'achat ({settings.currency_symbol})</Label>
+                  <Input
+                    type="text"
+                    inputMode="decimal"
+                    value={formCostPrice}
+                    onChange={e => handleCostPriceChange(e.target.value)}
+                    placeholder="ex: 5.0 ou 5,0"
+                    className="bg-gray-50 border-gray-300 text-black"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-black">Frais de service par défaut (%)</Label>
+                  <Input
+                    type="number"
+                    value={formServiceFee}
+                    onChange={e => setFormServiceFee(e.target.value)}
+                    className="bg-gray-50 border-gray-300 text-black"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-black">Quantité disponible</Label>
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    value={formQuantity}
+                    onChange={e => handleQuantityChange(e.target.value)}
+                    placeholder="ex: 50"
+                    className="bg-gray-50 border-gray-300 text-black"
+                  />
+                </div>
+
+                {/* Credit purchase option */}
+                <div className="flex items-center gap-3">
+                  <input id="credit-purchase" type="checkbox" className="h-4 w-4" checked={isCreditPurchase} onChange={(e) => setIsCreditPurchase(e.target.checked)} />
+                  <label htmlFor="credit-purchase" className="text-black font-semibold">Achat à crédit ?</label>
+                </div>
+
+                {isCreditPurchase && (
+                  <>
+                    <div className="space-y-2">
+                      <Label className="text-black">Nom du Fournisseur</Label>
+                      <Input value={supplierNameForProduct} onChange={e => setSupplierNameForProduct(e.target.value)} placeholder="Ex: Fournisseur X" className="bg-gray-50 border-gray-300 text-black" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-black">Montant Avancé ({settings.currency_symbol})</Label>
+                      <Input type="text" inputMode="decimal" value={amountAdvancedForProduct} onChange={e => setAmountAdvancedForProduct(e.target.value)} placeholder="0.00" className="bg-gray-50 border-gray-300 text-black" />
+                    </div>
+                  </>
+                )}
               </div>
 
-              <div className="space-y-2">
-                <Label className="text-black">Prix de vente ({settings.currency_symbol})</Label>
-                <Input
-                  type="text"
-                  inputMode="decimal"
-                  value={formPrice}
-                  onChange={e => handlePriceChange(e.target.value)}
-                  placeholder="ex: 12.5 ou 12,5"
-                  className="bg-gray-50 border-gray-300 text-black"
-                />
+              <div className="mt-4">
+                <Button variant="outline" onClick={() => setShowForm(false)}>Annuler</Button>
+                <Button type="submit" form="product-form" className="ml-2 bg-yellow-500 text-navy-deep hover:bg-yellow-600 font-semibold">{editingProduct ? "Modifier" : "Ajouter"}</Button>
               </div>
-
-              <div className="space-y-2">
-                <Label className="text-black">Prix d'achat ({settings.currency_symbol})</Label>
-                <Input
-                  type="text"
-                  inputMode="decimal"
-                  value={formCostPrice}
-                  onChange={e => handleCostPriceChange(e.target.value)}
-                  placeholder="ex: 5.0 ou 5,0"
-                  className="bg-gray-50 border-gray-300 text-black"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-black">Frais de service par défaut (%)</Label>
-                <Input
-                  type="number"
-                  value={formServiceFee}
-                  onChange={e => setFormServiceFee(e.target.value)}
-                  className="bg-gray-50 border-gray-300 text-black"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-black">Quantité disponible</Label>
-                <Input
-                  type="text"
-                  inputMode="numeric"
-                  value={formQuantity}
-                  onChange={e => handleQuantityChange(e.target.value)}
-                  placeholder="ex: 50"
-                  className="bg-gray-50 border-gray-300 text-black"
-                />
-              </div>
-
-              {/* Credit purchase option */}
-              <div className="flex items-center gap-3">
-                <input id="credit-purchase" type="checkbox" className="h-4 w-4" checked={isCreditPurchase} onChange={(e) => setIsCreditPurchase(e.target.checked)} />
-                <label htmlFor="credit-purchase" className="text-black font-semibold">Achat à crédit ?</label>
-              </div>
-
-              {isCreditPurchase && (
-                <>
-                  <div className="space-y-2">
-                    <Label className="text-black">Nom du Fournisseur</Label>
-                    <Input value={supplierNameForProduct} onChange={e => setSupplierNameForProduct(e.target.value)} placeholder="Ex: Fournisseur X" className="bg-gray-50 border-gray-300 text-black" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-black">Montant Avancé ({settings.currency_symbol})</Label>
-                    <Input type="text" inputMode="decimal" value={amountAdvancedForProduct} onChange={e => setAmountAdvancedForProduct(e.target.value)} placeholder="0.00" className="bg-gray-50 border-gray-300 text-black" />
-                  </div>
-                </>
-              )}
-
-              <Button
-                type="submit"
-                className="w-full bg-yellow-500 text-navy-deep hover:bg-yellow-600 font-semibold"
-              >
-                {editingProduct ? "Modifier" : "Ajouter"}
-              </Button>
             </form>
           </div>
         </div>
