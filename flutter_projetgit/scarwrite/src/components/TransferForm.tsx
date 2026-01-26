@@ -224,16 +224,7 @@ export function TransferForm({ type, onBack, onSuccess, editTransfer }: Transfer
         await createAccountingTransaction(entries);
       }
       // Auto-download receipt PDF after successful save
-      try {
-        const principal = finalAmountGourdes;
-        const fees = parseDecimalInput(transferFee);
-        const total = Math.round((principal + fees) * 100) / 100;
-        const receiptDoc = generateClientReceipt(customTypeName || getTransferTypeName(type), 1, principal, total, transferData.transfer_date);
-        const fileName = `Recu_Transfert_${reportNumber}_${transferData.transfer_date}.pdf`;
-        receiptDoc.save(fileName);
-      } catch (pdfErr) {
-        console.warn('Impossible de générer le reçu PDF automatiquement:', pdfErr);
-      }
+      // After save: enable manual receipt generation (do not auto-download)
     } catch (err) {
       console.error(err);
       toast({ title: 'Erreur', description: 'Problème enregistrement transfert', variant: 'destructive' });
@@ -245,7 +236,7 @@ export function TransferForm({ type, onBack, onSuccess, editTransfer }: Transfer
       // ignore storage errors
     }
 
-    onSuccess();
+    // Keep form open after save so user can generate receipt; caller can finish when ready
   };
 
   const formatCurrency = (amount: number): string => {
@@ -275,7 +266,7 @@ export function TransferForm({ type, onBack, onSuccess, editTransfer }: Transfer
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="flex items-center gap-4 mb-6">
-        <Button type="button" variant="ghost" size="icon" onClick={onBack}>
+        <Button type="button" size="icon" onClick={onBack} className="bg-amber-400 text-black hover:bg-amber-500 rounded-lg">
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <h2 className="font-display text-xl font-semibold text-foreground">
@@ -284,20 +275,24 @@ export function TransferForm({ type, onBack, onSuccess, editTransfer }: Transfer
         <div className="ml-auto">
           {/* If we have a saved transfer, show the existing ReceiptGenerator (auto-download). */}
           {lastTransferId ? (
-            <ReceiptGenerator
-              data={{
-                operationNumber: `#OP-${reportNumber}`,
-                operationDate: date.toISOString().split('T')[0],
-                operationType: 'transfert',
-                serviceType: customTypeName || getTransferTypeName(type),
-                principalAmount: calculatedGourdes || parseDecimalInput(amountGourdes),
-                fees: parseDecimalInput(transferFee),
-                senderName: senderName || senderPhone,
-                receiverName: receiverName || receiverPhone,
-                account: revenueAccount,
-              }}
-              autoDownload
-            />
+            <div className="flex items-center gap-2">
+              <ReceiptGenerator
+                data={{
+                  operationNumber: `#OP-${reportNumber}`,
+                  operationDate: date.toISOString().split('T')[0],
+                  operationType: 'transfert',
+                  serviceType: customTypeName || getTransferTypeName(type),
+                  principalAmount: calculatedGourdes || parseDecimalInput(amountGourdes),
+                  fees: parseDecimalInput(transferFee),
+                  senderName: senderName || senderPhone,
+                  receiverName: receiverName || receiverPhone,
+                  account: revenueAccount,
+                }}
+              />
+              <Button type="button" variant="outline" onClick={() => onSuccess()}>
+                Terminer
+              </Button>
+            </div>
           ) : (
             // Pre-save: enable a gold download button once an amount is entered
             <Button
@@ -316,12 +311,12 @@ export function TransferForm({ type, onBack, onSuccess, editTransfer }: Transfer
       {/* Custom type name for "autre" */}
       {type === 'autre' && (
         <div className="space-y-2">
-          <Label className="font-semibold text-white">Nom du service *</Label>
+          <Label className="font-semibold text-black">Nom du service *</Label>
           <Input
             value={customTypeName}
             onChange={(e) => setCustomTypeName(e.target.value)}
             placeholder="Ex: Sendwave, Remitly..."
-            className="bg-background border-slate-400 text-white"
+            className="bg-background border-slate-400 text-black"
             required
           />
         </div>
@@ -331,6 +326,7 @@ export function TransferForm({ type, onBack, onSuccess, editTransfer }: Transfer
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label className="font-semibold text-white">📅 Date</Label>
+          <Label className="font-semibold text-black">📅 Date</Label>
           <Popover>
             <PopoverTrigger asChild>
               <Button
@@ -357,6 +353,7 @@ export function TransferForm({ type, onBack, onSuccess, editTransfer }: Transfer
         </div>
         <div className="space-y-2">
           <Label className="font-semibold text-white">🧾 N° Rapport</Label>
+          <Label className="font-semibold text-black">🧾 N° Rapport</Label>
           <Input
             value={reportNumber}
             disabled
@@ -370,21 +367,23 @@ export function TransferForm({ type, onBack, onSuccess, editTransfer }: Transfer
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label className="font-semibold text-white">👤 Expéditeur</Label>
+            <Label className="font-semibold text-black">👤 Expéditeur</Label>
             <Input
               value={senderName}
               onChange={(e) => setSenderName(e.target.value)}
               placeholder="Nom de l'expéditeur"
-              className="bg-background border-slate-400 text-white"
+              className="bg-background border-slate-400 text-black"
               required
             />
           </div>
           <div className="space-y-2">
             <Label className="font-semibold text-white">👤 Bénéficiaire</Label>
+            <Label className="font-semibold text-black">👤 Bénéficiaire</Label>
             <Input
               value={receiverName}
               onChange={(e) => setReceiverName(e.target.value)}
               placeholder="Nom du bénéficiaire"
-              className="bg-background border-slate-400 text-white"
+              className="bg-background border-slate-400 text-black"
               required
             />
           </div>
@@ -396,23 +395,25 @@ export function TransferForm({ type, onBack, onSuccess, editTransfer }: Transfer
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label className="font-semibold text-white">📞 Tél. Expéditeur</Label>
+            <Label className="font-semibold text-black">📞 Tél. Expéditeur</Label>
             <Input
               type="tel"
               value={senderPhone}
               onChange={(e) => setSenderPhone(e.target.value)}
               placeholder="Ex: 509 3XXX XXXX"
-              className="bg-background border-slate-400 text-white"
+              className="bg-background border-slate-400 text-black"
               required
             />
           </div>
           <div className="space-y-2">
             <Label className="font-semibold text-white">📞 Tél. Bénéficiaire</Label>
+            <Label className="font-semibold text-black">📞 Tél. Bénéficiaire</Label>
             <Input
               type="tel"
               value={receiverPhone}
               onChange={(e) => setReceiverPhone(e.target.value)}
               placeholder="Ex: 509 3XXX XXXX"
-              className="bg-background border-slate-400 text-white"
+              className="bg-background border-slate-400 text-black"
               required
             />
           </div>
@@ -425,18 +426,20 @@ export function TransferForm({ type, onBack, onSuccess, editTransfer }: Transfer
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label className="font-semibold text-white">💵 Montant USD</Label>
+              <Label className="font-semibold text-black">💵 Montant USD</Label>
               <Input
                 type="text"
                 inputMode="decimal"
                 value={amountUsd}
                 onChange={(e) => setAmountUsd(e.target.value)}
                 placeholder="Ex: 150"
-                className="bg-background border-slate-400 text-white"
+                className="bg-background border-slate-400 text-black"
                 required
               />
             </div>
             <div className="space-y-2">
               <Label className="font-semibold text-white">💱 Taux du jour</Label>
+              <Label className="font-semibold text-black">💱 Taux du jour</Label>
               <Input
                 value={exchangeRate}
                 disabled
@@ -456,13 +459,14 @@ export function TransferForm({ type, onBack, onSuccess, editTransfer }: Transfer
       ) : (
         <div className="space-y-2">
           <Label className="font-semibold text-white">💵 Montant (Gourdes)</Label>
+          <Label className="font-semibold text-black">💵 Montant (Gourdes)</Label>
           <Input
             type="text"
             inputMode="decimal"
             value={amountGourdes}
             onChange={(e) => setAmountGourdes(e.target.value)}
             placeholder="Ex: 5000"
-            className="bg-background border-slate-400 text-white"
+            className="bg-background border-slate-400 text-black"
             required
           />
         </div>
@@ -471,13 +475,14 @@ export function TransferForm({ type, onBack, onSuccess, editTransfer }: Transfer
       {/* Transfer fee */}
       <div className="space-y-2">
         <Label className="font-semibold text-white">💼 Frais de transfert (Gourdes) *</Label>
+        <Label className="font-semibold text-black">💼 Frais de transfert (Gourdes) *</Label>
         <Input
           type="text"
           inputMode="decimal"
           value={transferFee}
           onChange={(e) => setTransferFee(e.target.value)}
           placeholder="Ex: 500"
-          className="bg-background border-slate-400 text-white"
+          className="bg-background border-slate-400 text-black"
           required
         />
         <p className="text-xs text-muted-foreground">Ces frais constituent la recette du transfert</p>
@@ -486,6 +491,7 @@ export function TransferForm({ type, onBack, onSuccess, editTransfer }: Transfer
       {/* Preview balances before/after */}
       <div className="p-4 rounded-lg bg-card border border-border space-y-3">
         <h3 className="text-sm font-semibold text-white">Soldes — Avant / Après</h3>
+        <h3 className="text-sm font-semibold text-black">Soldes — Avant / Après</h3>
         <div className="grid grid-cols-2 gap-4">
           <div className="p-3 rounded-lg bg-muted/20 border border-border/50">
             <p className="text-xs text-black font-bold">💳 Cash — Avant</p>
@@ -507,6 +513,7 @@ export function TransferForm({ type, onBack, onSuccess, editTransfer }: Transfer
       {/* Options du rapport PDF */}
       <div className="p-4 rounded-lg bg-card border border-border space-y-3">
         <h3 className="text-sm font-semibold text-white">Options du rapport PDF</h3>
+        <h3 className="text-sm font-semibold text-black">Options du rapport PDF</h3>
         <div className="grid grid-cols-2 gap-2">
           <label className="flex items-center gap-2">
             <Checkbox checked={reportOptions.totalOperations} onCheckedChange={(v) => setReportOptions(prev => ({ ...prev, totalOperations: !!v }))} />

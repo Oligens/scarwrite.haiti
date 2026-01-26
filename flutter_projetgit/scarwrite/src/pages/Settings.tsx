@@ -29,6 +29,7 @@ import {
   CompanyType,
   getShareholders,
   saveShareholders,
+  setActiveEntity,
 } from "@/lib/storage";
 import { ShareholderManager } from "@/components/ShareholderManager";
 
@@ -87,6 +88,8 @@ export default function Settings() {
         // keep existing initial_capital if present
         initial_capital: (await getCompanyProfile())?.initial_capital || 0,
       });
+      // Set active entity to this company name so the app filters data accordingly
+      try { setActiveEntity(companyName); } catch (e) { /* ignore */ }
       toast({ title: "Profil entreprise sauvegardé" });
     } catch (error) {
       toast({

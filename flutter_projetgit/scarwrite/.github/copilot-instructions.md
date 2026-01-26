@@ -71,125 +71,43 @@ const handleSubmit = async () => {
 
 ### Import Conventions
 - Always use path alias `@/lib/storage` (not relative imports); defined in `vite.config.ts`.
-- Icons from `@/lib/lucide-react` (re-export; Lucide dependency is bundled).
-- UI components from `@/components/ui/button`, etc. (local copies).
+```markdown
+# Copilot instructions — ScarWrite (concise)
 
-### Transfer Services (TransferType Union)
-Located in `src/lib/database.ts`:
-```typescript
-export type TransferType = 'zelle' | 'moncash' | 'natcash' | 'cam_transfert' | 'western_union' | 'moneygram' | 'autre';
+Purpose: give AI coding agents the specific, actionable rules to edit, extend and debug ScarWrite.
+
+- Big picture: offline-first React + Vite PWA using Dexie (IndexedDB) as the single source of truth. UI is local shadcn primitives + Tailwind. No server APIs.
+
+- Single-source data rule: NEVER write to IndexedDB directly from components. Use `src/lib/storage.ts` (public helpers) which wraps `src/lib/database.ts` (Dexie schema & `executeFinancialTransaction`). Example: call `await addSale(sale)` from `handleSubmit()` in forms.
+
+- Key places to look:
+  - `src/lib/storage.ts` — all reads/writes and domain helpers
+  - `src/lib/database.ts` — schema, `TransferType`, migration logic, `executeFinancialTransaction()`
+  - `src/components/ui/` — local shadcn components (do NOT install `@shadcn/ui`)
+  - `src/pages/` and `src/components/` — route-level loaders and controlled forms
+  - `src/lib/pdf.ts` — PDF receipts/exports
+
+- Conventions agents must follow:
+  - Use path alias imports (e.g. `@/lib/storage`) as configured in `vite.config.ts`.
+  - Forms use controlled `useState` fields and validate in `handleSubmit()`; do not introduce `react-hook-form`/Zod.
+  - Do NOT use React Query mutations for writes — call storage helpers directly and then refetch via state callbacks.
+  - To add a transfer service: extend `TransferType` in `database.ts`, add storage helpers, and update fee logic in `TransferForm.tsx`/`OperationForm.tsx`.
+
+- Debug & build commands (Windows-friendly):
+  - Install: `npm i` (or `bun install`)
+  - Dev: `npm run dev` (or `start-dev.bat` / `start-dev.ps1`)
+  - Build: `npm run build`; Preview: `npm run preview`
+
+- Debug tips:
+  - Inspect IndexedDB via Chrome DevTools → Application → IndexedDB → `ScarWriteDB`.
+  - For balance issues check `operations` table `cash_after`/`digital_after` and `getLastOperationForService()`.
+  - When changing schema, bump Dexie version and add migrations in `src/lib/database.ts`.
+
+- Quick don’ts (project-specific):
+  - Don’t import `@shadcn/ui` from npm; use `src/components/ui/`.
+  - Don’t bypass `src/lib/storage.ts` to read/write Dexie.
+  - Don’t add external network sync — the app is intentionally offline-first.
+
+If anything above is unclear or you need examples for a specific change (route, new transfer type, migration), say which area and I will expand with exact file edits.
 ```
-To add a new service: extend union, add to storage helper lookups, optionally set fee rules in `OperationForm.tsx` and `TransferForm.tsx`.
-
-### Settings & Configuration
-- **PIN**: Stored in `localStorage` (via `getPIN()`, `setPIN()`, `verifyPIN()`); not in Dexie.
-- **Company profile**: Dexie table `companyProfiles` (multi-entity support).
-- **Tax configs**: Dexie table `taxConfigs` (retrieve via `getTaxConfigs()`).
-- **Exchange rates**: In `settings` table, accessed via `getSettings().exchange_rate`.
-- **PDF options**: Form-level state; `generateClientReceipt()` and `generatePaymentReceipt()` in `src/lib/pdf.ts`.
-
-### Error Handling & Logging
-- Use `useToast()` from `@/hooks/use-toast` for user feedback (errors, success messages).
-- Console.error for diagnostic logs (errors in async operations, Dexie failures).
-- No Sentry or external logging; errors are local diagnostics only.
-- Validation errors shown as toast before storage calls; network N/A (offline-first).
-
-### Accounting Integration (Caméléon System)
-- Chart of accounts seeded via `seedCammeleonChart()` (~100 predefined accounts for restaurants/transfers).
-- Each transaction can create `AccountingEntry` records via `createAccountingTransaction()`.
-- Account linking is optional for sales/transfers; tax tracking is mandatory.
-- Account codes follow French chart format (701 = Sales, 641 = Salaries, 5311 = Main Cash, etc.).
-
----
-
-## Dev & Debugging Commands (Windows-friendly)
-
-### Setup & Run
-- Install: `npm i` (or `bun install` if using Bun; `bun.lockb` present)
-- Dev server: `npm run dev` (or run `start-dev.bat` / `start-dev.ps1` on Windows) — listens on `http://localhost:8080`
-- Build: `npm run build`; Preview: `npm run preview`
-- Lint: `npm run lint` (ESLint with TypeScript plugin; strict rules enforce `no-explicit-any`)
-
 ### Offline Testing & PWA
-- Service worker auto-registers via `vite-plugin-pwa`.
-- Dev server auto-updates service worker; to clear cache manually: DevTools → Application → Cache Storage → delete "ScarWrite" cache.
-- Offline: Disable network in DevTools or use "Offline" mode in Network tab; app continues to function.
-- All data persists in IndexedDB locally; sync to cloud is NOT implemented (intentionally offline-first).
-
-### Database Inspection
-- Chrome DevTools → Application → IndexedDB → `ScarWriteDB`.
-- Explore tables: `operations`, `sales`, `transfers`, `balances`, `products`, `settings`, `accounts`, `accountingEntries`, etc.
-- Query by opening DevTools console and using Dexie directly:
-  ```javascript
-  const { db } = await import('./src/lib/database');
-  db.sales.where('sale_date').equals('2025-01-25').toArray().then(sales => console.log(sales));
-  ```
-
-### Common Debugging Tasks
-- **Balance issues**: Check `getLastOperationForService()` output in console, verify `cash_after` / `digital_after` in `operations` table.
-- **Form not submitting**: Check `handleSubmit()` for validation errors, trace through toast messages.
-- **Missing data**: Verify Dexie version hasn't changed without migration; check schema in `src/lib/database.ts`.
-- **Styling issues**: Ensure Tailwind classes are in content paths (`src/**/*.{ts,tsx}`); rebuild CSS if needed (`npm run build`).
-
----
-
-## Data Loading Patterns in Pages & Components
-
-### Page-Level Data Loading (useEffect + useState)
-Pages fetch data on mount and expose state to sub-components. Example (Dashboard):
-```tsx
-useEffect(() => {
-  const loadData = async () => {
-    const balance = getTypeBalance('zelle');
-    const revenue = await getDailyRevenue(todayStr);
-    setCashBalance(balance.cash_balance);
-    setRevenue(revenue);
-  };
-  loadData().catch(err => console.error('Load error:', err));
-}, []);
-```
-
-### Form Components (Controlled Inputs)
-Forms maintain local state and call storage functions in handleSubmit:
-```tsx
-const [quantity, setQuantity] = useState(1);
-const handleSubmit = async () => {
-  if (!selectedProduct) { toast({ description: 'Select product' }); return; }
-  await addSale({ id: uuid(), product_id: selectedProduct, quantity, ... });
-  onSuccess(); // Parent refetches
-};
-```
-
-### Avoid: React Query with Mutations
-DO NOT use `useMutation()` for data writes. Instead call storage functions directly in event handlers and refetch via setState/callback.
-- `useQuery()` is acceptable for expensive reads (if needed), but most data is fetched directly via synchronous storage helpers.
-- TanStack React Query is installed but NOT used for mutations to keep offline-first logic simple.
-
-## Migrations & Schema Changes
-- If you change `src/lib/database.ts` (schema/interfaces), bump Dexie version and add migration logic there. Also update `src/lib/storage.ts` wrappers.
-- Dexie migrations: `db.version(3).stores({ ... })` creates versioned schema; old data persists via automatic upgrade.
-- Always test migrations locally by clearing IndexedDB and reloading.
-
----
-
-## Debugging Balance Issues (short checklist)
-- Check `getLastOperationForService()` for last-state.
-- Inspect `executeFinancialTransaction()` in `src/lib/database.ts` for fee/commission logic.
-- Verify final `cash_after` / `digital_after` stored in `operations` table in DevTools.
-
----
-
-## Quick Don’ts
-- Do not add `@shadcn/ui` to dependencies — primitives are local.
-- Do not write directly to IndexedDB outside `src/lib/storage.ts`.
-- Do not add external APIs — fully offline-first.
-- Do not use `useMutation()` from React Query for writes; call storage functions directly.
-- Do not import from `lucide-react` directly; use `@/lib/lucide-react` (re-export).
-- Do not add `react-hook-form`, `Zod`, or other form libraries; use manual useState validation.
-
-## Where to Extend Functionality
-- Add new UI form in `src/components/` and call `src/lib/storage.ts` for persistence.
-- Add new types or tables in `src/lib/database.ts` + Dexie migration + expose helper(s) in `src/lib/storage.ts`.
-- Add new routes in `src/App.tsx` and create corresponding page in `src/pages/`.
-- New Transfer Service: extend `TransferType` union in `database.ts`, add fee logic in `TransferForm.tsx`, and storage helpers in `storage.ts`.
-- PDF exports: modify `src/lib/pdf.ts` or create new export function; integrate into form component's report options.

@@ -160,14 +160,14 @@ export function BalanceHeader({ transferType, customTypeName, onBalanceChange, r
   return (
     <>
       <div className="card-premium p-4 mb-6">
-        <h3 className="text-sm font-semibold text-white mb-3 text-center">
+        <h3 className="text-sm font-bold text-black mb-3 text-center">
           Soldes - {getTransferTypeName(transferType, customTypeName)}
         </h3>
         
         <div className="grid grid-cols-2 gap-4">
           {/* Digital Balance */}
           <div className="bg-muted/30 rounded-lg p-3">
-            <div className="flex items-center gap-2 text-xs text-white mb-1">
+            <div className="flex items-center gap-2 text-xs text-black mb-1">
               <CreditCard className="h-3 w-3" />
               <span>Argent numérique</span>
             </div>
@@ -190,7 +190,7 @@ export function BalanceHeader({ transferType, customTypeName, onBalanceChange, r
               </div>
             ) : (
               <div className="flex items-center justify-between">
-                <span className="text-lg font-bold text-primary">
+                <span className="text-lg font-bold text-black">
                   {formatCurrency(balance.digital_balance)} {settings.currency_symbol}
                 </span>
                 <div className="flex gap-1">
@@ -212,7 +212,7 @@ export function BalanceHeader({ transferType, customTypeName, onBalanceChange, r
 
           {/* Cash Balance */}
           <div className="bg-muted/30 rounded-lg p-3">
-            <div className="flex items-center gap-2 text-xs text-white mb-1">
+            <div className="flex items-center gap-2 text-xs text-black mb-1">
               <Banknote className="h-3 w-3" />
               <span>Argent cash</span>
             </div>
@@ -235,7 +235,7 @@ export function BalanceHeader({ transferType, customTypeName, onBalanceChange, r
               </div>
             ) : (
               <div className="flex items-center justify-between">
-                <span className="text-lg font-bold text-green-600">
+                <span className="text-lg font-bold text-black">
                   {formatCurrency(balance.cash_balance)} {settings.currency_symbol}
                 </span>
                 <div className="flex gap-1">

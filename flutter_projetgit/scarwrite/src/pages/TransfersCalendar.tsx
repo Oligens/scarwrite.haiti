@@ -87,11 +87,11 @@ export default function TransfersCalendar() {
       <div className="space-y-6">
         <div className="card-premium p-6">
           <div className="flex items-center justify-between">
-            <Button variant="ghost" size="icon" onClick={() => setCurrentDate(new Date(year, month - 1, 1))} className="text-card-foreground">
+            <Button size="icon" onClick={() => setCurrentDate(new Date(year, month - 1, 1))} className="text-black bg-amber-400 hover:bg-amber-500 rounded-lg">
               <ChevronLeft className="h-5 w-5" />
             </Button>
             <h2 className="font-display text-xl font-semibold text-card-foreground">{MONTHS_FR[month]} {year}</h2>
-            <Button variant="ghost" size="icon" onClick={() => setCurrentDate(new Date(year, month + 1, 1))} className="text-card-foreground">
+            <Button size="icon" onClick={() => setCurrentDate(new Date(year, month + 1, 1))} className="text-black bg-amber-400 hover:bg-amber-500 rounded-lg">
               <ChevronRight className="h-5 w-5" />
             </Button>
           </div>

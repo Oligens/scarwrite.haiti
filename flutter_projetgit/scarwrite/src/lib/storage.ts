@@ -241,6 +241,33 @@ export const saveSettings = async (settings: Partial<Settings>): Promise<void> =
   }
 };
 
+// Active entity (multi-tenancy): store active entity in localStorage
+export const getActiveEntity = (): string => {
+  try {
+    const e = localStorage.getItem('scarwrite_active_entity');
+    if (e) return e;
+    const profile = getSettings();
+    return profile.company_type || 'Entreprise Individuelle';
+  } catch (err) {
+    return 'Entreprise Individuelle';
+  }
+};
+
+export const setActiveEntity = (entity: string): void => {
+  try {
+    localStorage.setItem('scarwrite_active_entity', entity);
+    try {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('entity-changed'));
+        window.dispatchEvent(new CustomEvent('ledger-updated'));
+        window.dispatchEvent(new CustomEvent('financials-updated'));
+      }
+    } catch (e) { }
+  } catch (err) {
+    console.error('Erreur setActiveEntity:', err);
+  }
+};
+
 // Company Profile Functions
 export const getCompanyProfile = async (): Promise<CompanyProfile | null> => {
   try {
@@ -294,7 +321,9 @@ export const isSocialEntity = async (): Promise<boolean> => {
 // Products
 export const getProducts = async (): Promise<Product[]> => {
   try {
-    return await db.products.toArray();
+    const active = getActiveEntity();
+    // Only return products matching the active entity
+    return await db.products.filter(p => (p as any).entity_type === active).toArray();
   } catch (error) {
     console.error('Erreur récupération produits:', error);
     return [];
@@ -323,6 +352,7 @@ export const addProduct = async (name: string, unitPrice: number, costPrice: num
     service_fee_percentage: service_fee_percentage,
     created_at: now,
     updated_at: now,
+    entity_type: getActiveEntity(),
   };
 
   try {
@@ -377,7 +407,8 @@ export const deleteProduct = async (id: string): Promise<void> => {
 // Sales
 export const getSales = async (): Promise<Sale[]> => {
   try {
-    return await db.sales.toArray();
+    const active = getActiveEntity();
+    return await db.sales.filter(s => (s as any).entity_type === active).toArray();
   } catch (error) {
     console.error('Erreur récupération ventes:', error);
     return [];
@@ -450,6 +481,7 @@ export const addSale = async (
   };
 
   try {
+    (sale as any).entity_type = getActiveEntity();
     await db.sales.add(sale);
 
     // Immediately create double-entry accounting entries for this sale
@@ -663,7 +695,8 @@ export const getMonthlyTotals = async (startYear: number): Promise<Array<{ month
 // Transfers
 export const getTransfers = async (): Promise<Transfer[]> => {
   try {
-    return await db.transfers.toArray();
+    const active = getActiveEntity();
+    return await db.transfers.filter(t => (t as any).entity_type === active).toArray();
   } catch (error) {
     console.error('Erreur récupération transferts:', error);
     return [];
@@ -684,6 +717,7 @@ export const addTransfer = async (transfer: Omit<Transfer, 'id' | 'created_at'>)
     ...transfer,
     id: crypto.randomUUID(),
     created_at: new Date().toISOString(),
+    entity_type: getActiveEntity(),
   };
 
   try {
@@ -756,7 +790,8 @@ export const getNextReportNumber = (): number => {
 // Operations
 export const getOperations = async (): Promise<FinancialOperation[]> => {
   try {
-    return await db.operations.toArray();
+    const active = getActiveEntity();
+    return await db.operations.filter(o => (o as any).entity_type === active).toArray();
   } catch (error) {
     console.error('Erreur récupération opérations:', error);
     return [];
@@ -778,7 +813,7 @@ export const addOperation = async (operation: Omit<{
   fees?: number;
   commission?: number;
   notes?: string;
-}, 'id' | 'created_at'>): Promise<void> => {
+}, 'id' | 'created_at'>): Promise<import("./database").FinancialOperation> => {
   // Business rule: Create accounting entries for every operation
   try {
     const today = operation.operation_date || new Date().toISOString().slice(0,10);
@@ -983,6 +1018,9 @@ export const addOperation = async (operation: Omit<{
   } catch (err) {
     console.error('Erreur mise à jour balance par type après opération:', err);
   }
+
+  // Return created operation so callers (forms) can display receipts
+  return createdOp;
 };
 
 export const getOperationById = async (id: string): Promise<FinancialOperation | undefined> => {
@@ -1592,9 +1630,27 @@ export const calculateTaxesFromAccounting = async (
 // --- Third party (clients / suppliers) helpers ---
 export const addOrUpdateThirdParty = async (name: string, type: 'client' | 'supplier', delta: number = 0): Promise<ThirdParty> => {
   try {
-    const nameHash = name.toLowerCase();
+    const nameKey = name.trim().toLowerCase();
     const now = new Date().toISOString();
 
+    // For suppliers, use db.suppliers as the canonical store
+    if (type === 'supplier') {
+      const found = await db.suppliers.filter((s: any) => (s.name || '').toLowerCase() === nameKey).toArray();
+      if (found.length > 0) {
+        const sup: any = found[0];
+        const newAmount = (sup.amount_owed || 0) + delta;
+        await db.suppliers.update(sup.id, { amount_owed: newAmount, updated_at: now });
+        return { id: sup.id, name: sup.name, type: 'supplier', balance: newAmount, created_at: sup.created_at, updated_at: now } as ThirdParty;
+      }
+
+      // Create supplier entry when missing (delta may be 0)
+      const newId = crypto.randomUUID();
+      await db.suppliers.add({ id: newId, name, amount_owed: delta, due_date: now, status: delta > 0 ? 'active' : 'settled', entity_type: getActiveEntity(), created_at: now, updated_at: now });
+      return { id: newId, name, type: 'supplier', balance: delta, created_at: now, updated_at: now } as ThirdParty;
+    }
+
+    // For clients (and other third parties) keep the encrypted db.tiers store
+    const nameHash = nameKey;
     const found = await db.tiers.filter(t => (t as unknown as StoredThirdParty).name_hash === nameHash && t.type === type).toArray();
     if (found.length > 0) {
       const tp = found[0] as StoredThirdParty;
@@ -1619,6 +1675,11 @@ export const addOrUpdateThirdParty = async (name: string, type: 'client' | 'supp
 
 export const getThirdParties = async (type?: 'client' | 'supplier'): Promise<ThirdParty[]> => {
   try {
+    if (type === 'supplier') {
+      const suppliers = await getSuppliers();
+      return suppliers.map(s => ({ id: s.id, name: s.name, type: 'supplier', balance: s.amount_owed || 0, created_at: s.created_at, updated_at: s.updated_at } as ThirdParty));
+    }
+
     const rows = type ? await db.tiers.where('type').equals(type).toArray() : await db.tiers.toArray();
     return rows.map((r: StoredThirdParty) => {
       const payload = r.encrypted_payload ? decryptObject(r.encrypted_payload) as { name?: string; balance?: number } : { name: r.name, balance: r.balance };
@@ -1639,6 +1700,18 @@ export const getThirdParties = async (type?: 'client' | 'supplier'): Promise<Thi
 
 export const deleteThirdParty = async (id: string): Promise<void> => {
   try {
+    // Try suppliers first (canonical)
+    try {
+      const sup = await db.suppliers.get(id);
+      if (sup) {
+        await db.suppliers.delete(id);
+        try { if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('ledger-updated')); } catch (e) { console.debug('ledger-updated dispatch failed', e); }
+        return;
+      }
+    } catch (e) {
+      // ignore and try tiers
+    }
+
     await db.tiers.delete(id);
     try { if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('ledger-updated')); } catch (e) { console.debug('ledger-updated dispatch failed', e); }
   } catch (err) {
@@ -2180,7 +2253,8 @@ interface Supplier {
 
 export const getSuppliers = async (): Promise<Supplier[]> => {
   try {
-    const suppliers = await db.suppliers.toArray();
+    const active = getActiveEntity();
+    const suppliers = await db.suppliers.filter(s => (s as any).entity_type === active).toArray();
     return suppliers;
   } catch (err) {
     console.error('Erreur récupération fournisseurs:', err);
@@ -2195,6 +2269,7 @@ export const addSupplier = async (supplier: Omit<Supplier, 'id' | 'created_at' |
     await db.suppliers.add({
       id,
       ...supplier,
+      entity_type: getActiveEntity(),
       created_at: now,
       updated_at: now,
     });

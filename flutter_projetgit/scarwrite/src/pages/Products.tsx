@@ -12,6 +12,9 @@ import {
   addService,
   updateProduct,
   deleteProduct,
+  getSuppliers,
+  addSupplier,
+  updateSupplier,
   getSettings,
   parseDecimalInput,
   Product,
@@ -33,6 +36,9 @@ export default function Products() {
   const [formServiceName, setFormServiceName] = useState("");
   const [formServicePrice, setFormServicePrice] = useState("");
   const [formServiceFeeService, setFormServiceFeeService] = useState<string>('2');
+  const [isCreditPurchase, setIsCreditPurchase] = useState(false);
+  const [supplierNameForProduct, setSupplierNameForProduct] = useState("");
+  const [amountAdvancedForProduct, setAmountAdvancedForProduct] = useState("");
   const settings = getSettings();
 
   useEffect(() => {
@@ -154,27 +160,76 @@ export default function Products() {
         // Generate accounting entries for new product stock
         if (stockValue > 0) {
           const date = new Date().toISOString().slice(0, 10);
-          const entries = [
-            {
-              journal_date: date,
-              transaction_type: 'product_stock',
-              account_code: '31',
-              account_name: 'Stocks de marchandises',
-              debit: stockValue,
-              credit: 0,
-              description: `Stock initial: ${formName.trim()} (${quantity} unités @ ${costPrice.toFixed(2)} ${settings.currency_symbol})`,
-            },
-              {
+          const entries: any[] = [];
+
+          // Debit stock account
+          entries.push({
+            journal_date: date,
+            transaction_type: 'product_stock',
+            account_code: '31',
+            account_name: 'Stocks de marchandises',
+            debit: stockValue,
+            credit: 0,
+            description: `Stock initial: ${formName.trim()} (${quantity} unités @ ${costPrice.toFixed(2)} ${settings.currency_symbol})`,
+          });
+
+          if (isCreditPurchase) {
+            const advanced = parseDecimalInput(amountAdvancedForProduct) || 0;
+            const debt = Math.round((stockValue - advanced) * 100) / 100;
+
+            // Credit supplier (401) for the debt
+            if (debt > 0) {
+              entries.push({
                 journal_date: date,
-                transaction_type: 'product_stock',
+                transaction_type: 'product_stock_credit',
+                account_code: '401',
+                account_name: 'Fournisseurs',
+                debit: 0,
+                credit: debt,
+                description: `Achat à crédit: ${formName.trim()} - Fournisseur: ${supplierNameForProduct || 'N/A'}`,
+              });
+            }
+
+            // Credit cash/bank for advanced amount
+            if (advanced > 0) {
+              entries.push({
+                journal_date: date,
+                transaction_type: 'product_stock_advance',
                 account_code: '5311',
                 account_name: 'Caisse Centrale',
                 debit: 0,
-                credit: stockValue,
-                description: `Paiement stock: ${formName.trim()}`,
-              },
-          ];
-          
+                credit: advanced,
+                description: `Achat (avance) ${formName.trim()}`,
+              });
+            }
+
+            // Create supplier entry if supplier provided
+            if (supplierNameForProduct.trim()) {
+              try {
+                const existing = await getSuppliers();
+                const found = existing.find(s => s.name.toLowerCase() === supplierNameForProduct.trim().toLowerCase());
+                if (found) {
+                  await updateSupplier(found.id!, { amount_owed: found.amount_owed + (debt > 0 ? debt : 0), due_date: date, status: 'active' });
+                } else {
+                  await addSupplier({ name: supplierNameForProduct.trim(), amount_owed: debt > 0 ? debt : 0, due_date: date, status: 'active' });
+                }
+              } catch (err) {
+                console.warn('Impossible d\'ajouter le fournisseur automatiquement:', err);
+              }
+            }
+          } else {
+            // Paid in full: credit cash
+            entries.push({
+              journal_date: date,
+              transaction_type: 'product_stock',
+              account_code: '5311',
+              account_name: 'Caisse Centrale',
+              debit: 0,
+              credit: stockValue,
+              description: `Paiement stock: ${formName.trim()}`,
+            });
+          }
+
           await createAccountingTransaction(entries);
           toast({ 
             title: "Produit ajouté avec écriture comptable", 
@@ -409,60 +464,79 @@ export default function Products() {
 
             <form onSubmit={handleSubmit} className="space-y-5">
               <div className="space-y-2">
-                <Label className="text-navy-deep">Nom du produit</Label>
+                <Label className="text-black">Nom du produit</Label>
                 <Input
                   value={formName}
                   onChange={e => setFormName(e.target.value)}
                   placeholder="ex: Croissant"
-                  className="bg-gray-50 border-gray-300 text-navy-deep"
+                  className="bg-gray-50 border-gray-300 text-black"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label className="text-navy-deep">Prix de vente ({settings.currency_symbol})</Label>
+                <Label className="text-black">Prix de vente ({settings.currency_symbol})</Label>
                 <Input
                   type="text"
                   inputMode="decimal"
                   value={formPrice}
                   onChange={e => handlePriceChange(e.target.value)}
                   placeholder="ex: 12.5 ou 12,5"
-                  className="bg-gray-50 border-gray-300 text-navy-deep"
+                  className="bg-gray-50 border-gray-300 text-black"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label className="text-navy-deep">Prix d'achat ({settings.currency_symbol})</Label>
+                <Label className="text-black">Prix d'achat ({settings.currency_symbol})</Label>
                 <Input
                   type="text"
                   inputMode="decimal"
                   value={formCostPrice}
                   onChange={e => handleCostPriceChange(e.target.value)}
                   placeholder="ex: 5.0 ou 5,0"
-                  className="bg-gray-50 border-gray-300 text-navy-deep"
+                  className="bg-gray-50 border-gray-300 text-black"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label className="text-navy-deep">Frais de service par défaut (%)</Label>
+                <Label className="text-black">Frais de service par défaut (%)</Label>
                 <Input
                   type="number"
                   value={formServiceFee}
                   onChange={e => setFormServiceFee(e.target.value)}
-                  className="bg-gray-50 border-gray-300 text-navy-deep"
+                  className="bg-gray-50 border-gray-300 text-black"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label className="text-navy-deep">Quantité disponible</Label>
+                <Label className="text-black">Quantité disponible</Label>
                 <Input
                   type="text"
                   inputMode="numeric"
                   value={formQuantity}
                   onChange={e => handleQuantityChange(e.target.value)}
                   placeholder="ex: 50"
-                  className="bg-gray-50 border-gray-300 text-navy-deep"
+                  className="bg-gray-50 border-gray-300 text-black"
                 />
               </div>
+
+              {/* Credit purchase option */}
+              <div className="flex items-center gap-3">
+                <input id="credit-purchase" type="checkbox" className="h-4 w-4" checked={isCreditPurchase} onChange={(e) => setIsCreditPurchase(e.target.checked)} />
+                <label htmlFor="credit-purchase" className="text-black font-semibold">Achat à crédit ?</label>
+              </div>
+
+              {isCreditPurchase && (
+                <>
+                  <div className="space-y-2">
+                    <Label className="text-black">Nom du Fournisseur</Label>
+                    <Input value={supplierNameForProduct} onChange={e => setSupplierNameForProduct(e.target.value)} placeholder="Ex: Fournisseur X" className="bg-gray-50 border-gray-300 text-black" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-black">Montant Avancé ({settings.currency_symbol})</Label>
+                    <Input type="text" inputMode="decimal" value={amountAdvancedForProduct} onChange={e => setAmountAdvancedForProduct(e.target.value)} placeholder="0.00" className="bg-gray-50 border-gray-300 text-black" />
+                  </div>
+                </>
+              )}
 
               <Button
                 type="submit"

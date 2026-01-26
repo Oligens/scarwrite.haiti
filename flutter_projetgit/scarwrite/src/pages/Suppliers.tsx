@@ -319,33 +319,33 @@ export default function Suppliers() {
             <DialogTitle className="font-display text-xl font-bold">Ajouter un Fournisseur</DialogTitle>
             <form onSubmit={handleAddSupplier} className="space-y-4 mt-4">
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Nom du Fournisseur</label>
+                <label className="block text-sm font-semibold text-black mb-2">Nom du Fournisseur</label>
                 <input
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   placeholder="Ex: Boucherie Martin"
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Montant Dû</label>
+                <label className="block text-sm font-semibold text-black mb-2">Montant Dû</label>
                 <input
                   type="number"
                   step="0.01"
                   value={formData.amount}
                   onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
                   placeholder="0.00"
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Date d'Échéance</label>
+                <label className="block text-sm font-semibold text-black mb-2">Date d'Échéance</label>
                 <input
                   type="date"
                   value={formData.due_date}
                   onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
                 />
               </div>
               <div className="flex gap-2 justify-end mt-6">
@@ -374,7 +374,7 @@ export default function Suppliers() {
                 </p>
               </div>
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Montant à Payer</label>
+                <label className="block text-sm font-semibold text-black mb-2">Montant à Payer</label>
                 <input
                   type="number"
                   step="0.01"
@@ -382,15 +382,15 @@ export default function Suppliers() {
                   onChange={(e) => setPaymentAmount(e.target.value)}
                   placeholder="0.00"
                   max={selectedSupplier?.amount_owed}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-black"
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Mode de Paiement</label>
+                <label className="block text-sm font-semibold text-black mb-2">Mode de Paiement</label>
                 <select
                   value={paymentMethod}
                   onChange={(e) => setPaymentMethod(e.target.value as 'cash' | 'digital')}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-black"
                 >
                   <option value="cash">Espèces (53 Caisse)</option>
                   <option value="digital">Virement (51 Banque)</option>

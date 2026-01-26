@@ -12,6 +12,9 @@ import {
   Product,
   getSettings,
   addOrUpdateThirdParty,
+  getSuppliers,
+  addSupplier,
+  updateSupplier,
 } from "@/lib/storage";
 
 interface RestockFormProps {
@@ -154,9 +157,21 @@ export function RestockForm({ product, onClose, onSuccess }: RestockFormProps) {
           description: `Dette réapprovisionnement: ${product.name} (à crédit)`,
         });
 
-        // Update supplier balance if credit purchase
+        // Update third-party quick ledger
         if (supplierName.trim()) {
           await addOrUpdateThirdParty(supplierName.trim(), "supplier", debt);
+          // Also add or update in suppliers table so it appears on Suppliers page
+          try {
+            const existing = await getSuppliers();
+            const found = existing.find(s => s.name.toLowerCase() === supplierName.trim().toLowerCase());
+            if (found) {
+              await updateSupplier(found.id!, { amount_owed: found.amount_owed + debt, due_date: date, status: 'active' });
+            } else {
+              await addSupplier({ name: supplierName.trim(), amount_owed: debt, due_date: date, status: 'active' });
+            }
+          } catch (err) {
+            console.warn('Impossible de créer/mettre à jour fournisseur dans suppliers table:', err);
+          }
         }
       }
 
@@ -208,14 +223,14 @@ export function RestockForm({ product, onClose, onSuccess }: RestockFormProps) {
         <form onSubmit={handleSubmit} className="space-y-5">
           {/* Quantity Added */}
           <div className="space-y-2">
-            <Label className="font-semibold text-white">Quantité ajoutée</Label>
+            <Label className="font-semibold text-black">Quantité ajoutée</Label>
             <Input
               type="text"
               inputMode="numeric"
               value={quantityAdded}
               onChange={(e) => handleQuantityChange(e.target.value)}
               placeholder="ex: 100"
-              className="bg-background border-slate-400 text-white"
+              className="bg-background border-slate-400 text-black"
             />
             {quantityAdded && (
               <p className="text-xs text-gray-600">
@@ -226,7 +241,7 @@ export function RestockForm({ product, onClose, onSuccess }: RestockFormProps) {
 
           {/* Cost Price */}
           <div className="space-y-2">
-            <Label className="font-semibold text-white">
+            <Label className="font-semibold text-black">
               Prix d'achat unitaire ({settings.currency_symbol})
             </Label>
             <Input
@@ -235,7 +250,7 @@ export function RestockForm({ product, onClose, onSuccess }: RestockFormProps) {
               value={costPrice}
               onChange={(e) => handleCostPriceChange(e.target.value)}
               placeholder="ex: 10.5 ou 10,5"
-              className="bg-background border-slate-400 text-white"
+              className="bg-background border-slate-400 text-black"
             />
             {costPrice && quantityAdded && (
               <p className="text-xs text-gray-600">
@@ -255,7 +270,7 @@ export function RestockForm({ product, onClose, onSuccess }: RestockFormProps) {
               }}
               className="h-5 w-5"
             />
-            <Label htmlFor="is-credit" className="mb-0 cursor-pointer text-sm font-semibold text-white">
+            <Label htmlFor="is-credit" className="mb-0 cursor-pointer text-sm font-semibold text-black">
               À crédit (achat mixte)
             </Label>
           </div>
@@ -264,7 +279,7 @@ export function RestockForm({ product, onClose, onSuccess }: RestockFormProps) {
           {isCredit && (
             <>
               <div className="space-y-2">
-                <Label className="font-semibold text-white">
+                <Label className="font-semibold text-black">
                   Montant payé immédiatement ({settings.currency_symbol})
                 </Label>
                 <Input
@@ -273,19 +288,19 @@ export function RestockForm({ product, onClose, onSuccess }: RestockFormProps) {
                   value={amountPaid}
                   onChange={(e) => handleAmountPaidChange(e.target.value)}
                   placeholder="ex: 400"
-                  className="bg-background border-slate-400 text-white"
+                  className="bg-background border-slate-400 text-black"
                 />
               </div>
 
               {/* Supplier Name */}
               <div className="space-y-2">
-                <Label className="font-semibold text-white">Nom du fournisseur</Label>
+                <Label className="font-semibold text-black">Nom du fournisseur</Label>
                 <Input
                   type="text"
                   value={supplierName}
                   onChange={(e) => setSupplierName(e.target.value)}
                   placeholder="ex: Boucherie Martin"
-                  className="bg-background border-slate-400 text-white"
+                  className="bg-background border-slate-400 text-black"
                 />
               </div>
 
@@ -294,12 +309,12 @@ export function RestockForm({ product, onClose, onSuccess }: RestockFormProps) {
                 <div className="space-y-2 rounded-lg bg-gray-50 p-3 border border-gray-200">
                   <p className="flex justify-between text-sm">
                     <span className="text-gray-600">Coût total:</span>
-                    <span className="font-semibold text-navy-deep">
+                    <span className="font-semibold text-black">
                       {totalCost.toFixed(2)} {settings.currency_symbol}
                     </span>
                   </p>
                   <p className="flex justify-between text-sm">
-                    <span className="text-green-700 font-semibold">Payé (53 - Caisse):</span>
+                    <span className="text-green-700 font-semibold">Payé (5311 - Caisse):</span>
                     <span className="font-bold text-green-700">{paid.toFixed(2)} {settings.currency_symbol}</span>
                   </p>
                   <p className="flex justify-between text-sm border-t border-gray-300 pt-2">
@@ -313,7 +328,7 @@ export function RestockForm({ product, onClose, onSuccess }: RestockFormProps) {
               <div className="flex gap-2 rounded-lg bg-blue-50 p-3 border border-blue-200">
                 <AlertCircle className="h-5 w-5 flex-shrink-0 text-blue-700" />
                 <p className="text-xs text-blue-700">
-                  Écriture: Débit 31 ({totalCost.toFixed(2)}) / Crédit 53 ({paid.toFixed(2)}) + Crédit 401 ({debt.toFixed(2)})
+                  Écriture: Débit 31 ({totalCost.toFixed(2)}) / Crédit 5311 ({paid.toFixed(2)}) + Crédit 401 ({debt.toFixed(2)})
                 </p>
               </div>
             </>

@@ -13,6 +13,7 @@ export interface Product {
   service_fee_percentage?: number;
   created_at: string;
   updated_at: string;
+  entity_type?: string;
 }
 
 export interface Sale {
@@ -27,6 +28,7 @@ export interface Sale {
   client_name?: string;
   paid_amount?: number;
   created_at: string;
+  entity_type?: string;
 }
 
 export type TransferType =
@@ -54,6 +56,7 @@ export interface Transfer {
   fees?: number;
   notes?: string;
   created_at: string;
+  entity_type?: string;
 }
 
 export type OperationType = 'transfer' | 'deposit' | 'withdrawal';
@@ -89,6 +92,7 @@ export interface FinancialOperation {
 
   notes?: string;
   created_at: string;
+  entity_type?: string;
 }
 
 export interface Balance {
@@ -140,6 +144,7 @@ export interface ThirdParty {
   balance: number; // positive = owed to us for clients, positive = we owe for suppliers
   created_at: string;
   updated_at?: string;
+  entity_type?: string;
 }
 
 export interface Shareholder {
@@ -214,6 +219,7 @@ export interface Supplier {
   due_date: string;
   status: 'active' | 'settled';
   created_at: string;
+  entity_type?: string;
   updated_at: string;
 }
 
@@ -237,11 +243,11 @@ export class AppDatabase extends Dexie {
 
   constructor() {
     super('ScarWriteDB');
-    this.version(8).stores({
-      products: 'id, name, is_active, created_at, updated_at',
-      sales: 'id, product_id, sale_date, created_at',
-      transfers: 'id, report_number, transfer_type, transfer_date, created_at',
-      operations: 'id, operation_number, operation_type, service_name, operation_date, created_at, cash_before, cash_after, digital_before, digital_after',
+    this.version(9).stores({
+      products: 'id, name, is_active, created_at, updated_at, entity_type',
+      sales: 'id, product_id, sale_date, created_at, entity_type',
+      transfers: 'id, report_number, transfer_type, transfer_date, created_at, entity_type',
+      operations: 'id, operation_number, operation_type, service_name, operation_date, created_at, cash_before, cash_after, digital_before, digital_after, entity_type',
       balances: 'id, type, updated_at',
       settings: '++id',
       company_profile: 'id, company_type, created_at, updated_at',
@@ -249,9 +255,9 @@ export class AppDatabase extends Dexie {
       taxed_transactions: 'id, transaction_type, transaction_id, transaction_date, tax_name, created_at',
       accounts: 'id, code, name, created_at, updated_at',
       accounting_entries: 'id, journal_date, transaction_type, transaction_id, account_code, created_at',
-      tiers: 'id, name, type, created_at, updated_at',
+      tiers: 'id, name, type, created_at, updated_at, entity_type',
       shareholders: 'id, name_hash, created_at, updated_at',
-      suppliers: 'id, name, status, due_date, created_at, updated_at',
+      suppliers: 'id, name, status, due_date, created_at, updated_at, entity_type',
       service_configs: 'id, transfer_type, created_at, updated_at',
     });
   }
@@ -455,6 +461,16 @@ export const executeFinancialTransaction = async (transactionData: {
     };
 
     // 4. Insérer dans la base de données
+    // Attach entity_type from localStorage active entity when available
+    try {
+      const activeEntity = (typeof window !== 'undefined') ? localStorage.getItem('scarwrite_active_entity') : null;
+      if (activeEntity) {
+        (newOperation as any).entity_type = activeEntity;
+      }
+    } catch (e) {
+      // ignore localStorage issues
+    }
+
     await db.operations.add(newOperation);
     
     console.log(`[executeFinancialTransaction] CREATED operation:`, { 

@@ -18,6 +18,7 @@ import {
   getSettings,
   getCurrentBalancesForService
 } from "@/lib/storage";
+import { getOperationById } from "@/lib/storage";
 import { FinancialOperation } from "@/lib/database";
 import { getLastOperationForService } from "@/lib/database";
 import { ReceiptGenerator } from "./ReceiptGenerator";
@@ -82,6 +83,7 @@ export function OperationForm({ operationType, transferType, customTypeName, onB
   const typeName = getTransferTypeName(transferType, customTypeName);
   const isEditMode = !!editingOperation;
   const [lastOperation, setLastOperation] = useState<FinancialOperation | null>(editingOperation || null);
+  const [savedOperation, setSavedOperation] = useState<FinancialOperation | null>(null);
 
   const parsedAmountGdes = parseDecimalInput(amountGdes) || 0;
   const parsedFees = parseDecimalInput(fees) || 0;
@@ -121,13 +123,23 @@ export function OperationForm({ operationType, transferType, customTypeName, onB
         notes: note
       };
       console.log(`[OperationForm] Submitting operation:`, data);
+      let createdOp: FinancialOperation | undefined;
       if (isEditMode && editingOperation) {
         await updateOperation(editingOperation.id, data);
+        // fetch updated op
+        createdOp = await getOperationById(editingOperation.id) as FinancialOperation;
       } else {
-        await addOperation(data);
+        createdOp = await addOperation(data);
       }
-      console.log(`[OperationForm] Operation submitted successfully`);
-      onSuccess();
+      console.log(`[OperationForm] Operation submitted successfully`, createdOp);
+      // Keep form open and show receipt button — call onSuccess when user finishes
+      if (createdOp) {
+        setSavedOperation(createdOp);
+        setLastOperation(createdOp);
+        toast({ title: "Opération enregistrée", description: `N° ${createdOp.operation_number}` });
+      } else {
+        toast({ title: "Opération enregistrée" });
+      }
     } catch (err) { 
       console.error(`[OperationForm] Error submitting:`, err);
       toast({ title: "Erreur", variant: "destructive" }); 
@@ -140,14 +152,34 @@ export function OperationForm({ operationType, transferType, customTypeName, onB
   return (
     <form onSubmit={handleSubmit} className="p-4 space-y-6">
       <div className="flex items-center justify-between">
-        <Button type="button" variant="ghost" onClick={onBack}><ArrowLeft /> Retour</Button>
+        <Button type="button" onClick={onBack} className="bg-amber-400 text-black font-bold hover:bg-amber-500 rounded-lg px-3 py-2"><ArrowLeft /> Retour</Button>
         <h2 className="text-xl font-bold">{config.title} - {typeName}</h2>
-        <Button type="submit" className="bg-blue-600"><Save className="mr-2" /> Enregistrer</Button>
+        <div className="flex items-center gap-2">
+          {savedOperation ? (
+            <ReceiptGenerator
+              data={{
+                operationNumber: `#OP-${savedOperation.operation_number}`,
+                operationDate: savedOperation.operation_date,
+                operationType: operationType === 'withdrawal' ? 'retrait' : (operationType === 'deposit' ? 'depot' : 'transfert'),
+                serviceType: getTransferTypeName(transferType, customTypeName),
+                principalAmount: savedOperation.amount_gdes,
+                fees: savedOperation.fees || 0,
+                senderName: savedOperation.sender_name || savedOperation.sender_phone,
+                receiverName: savedOperation.receiver_name || savedOperation.receiver_phone,
+                account: undefined,
+              }}
+            />
+          ) : null}
+          <Button type="submit" className="bg-blue-600"><Save className="mr-2" /> Enregistrer</Button>
+          <Button type="button" variant="outline" onClick={() => onSuccess()}>
+            Terminer
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label className="font-semibold text-white">Date</Label>
+          <Label className="font-semibold text-black">Date</Label>
           <PopoverComp>
             <PopoverTrigger asChild>
               <Button variant="outline" className="w-full text-left font-normal">
@@ -159,30 +191,30 @@ export function OperationForm({ operationType, transferType, customTypeName, onB
           </PopoverComp>
         </div>
         <div className="space-y-2">
-          <Label className="font-semibold text-white">N° Rapport</Label>
-          <Input value={operationNumber} disabled className="border-slate-400" />
+          <Label className="font-semibold text-black">N° Rapport</Label>
+          <Input value={operationNumber} disabled className="border-slate-400 text-black" />
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        <Input placeholder="Expéditeur" value={senderName} onChange={(e) => setSenderName(e.target.value)} className="border-slate-400 text-white" />
-        <Input placeholder="Bénéficiaire" value={receiverName} onChange={(e) => setReceiverName(e.target.value)} className="border-slate-400 text-white" />
+        <Input placeholder="Expéditeur" value={senderName} onChange={(e) => setSenderName(e.target.value)} className="border-slate-400 text-black" />
+        <Input placeholder="Bénéficiaire" value={receiverName} onChange={(e) => setReceiverName(e.target.value)} className="border-slate-400 text-black" />
       </div>
 
       <div className="grid grid-cols-3 gap-4">
-        <div><Label className="font-semibold text-white">Montant</Label><Input value={amountGdes} onChange={(e) => setAmountGdes(e.target.value)} className="border-slate-400 text-white" /></div>
-        <div><Label className="font-semibold text-white">Frais</Label><Input value={fees} onChange={(e) => setFees(e.target.value)} className="border-slate-400 text-white" /></div>
-        <div><Label className="font-semibold text-white">Commission</Label><Input value={commission} onChange={(e) => setCommission(e.target.value)} className="border-slate-400 text-white" /></div>
+        <div><Label className="font-semibold text-black">Montant</Label><Input value={amountGdes} onChange={(e) => setAmountGdes(e.target.value)} className="border-slate-400 text-black" /></div>
+        <div><Label className="font-semibold text-black">Frais</Label><Input value={fees} onChange={(e) => setFees(e.target.value)} className="border-slate-400 text-black" /></div>
+        <div><Label className="font-semibold text-black">Commission</Label><Input value={commission} onChange={(e) => setCommission(e.target.value)} className="border-slate-400 text-black" /></div>
       </div>
 
       <div className="grid grid-cols-2 gap-4 p-4 bg-slate-50 rounded-lg">
         <div>
-          <p className="text-sm font-bold">Balance Cash</p>
-          <p className="text-lg">{previewCash.toLocaleString()} GDES</p>
+          <p className="text-sm font-bold text-black">Balance Cash</p>
+          <p className="text-lg font-bold text-black">{previewCash.toLocaleString()} GDES</p>
         </div>
         <div>
-          <p className="text-sm font-bold">Balance Numérique</p>
-          <p className="text-lg">{previewDigital.toLocaleString()} GDES</p>
+          <p className="text-sm font-bold text-black">Balance Numérique</p>
+          <p className="text-lg font-bold text-black">{previewDigital.toLocaleString()} GDES</p>
         </div>
       </div>
     </form>

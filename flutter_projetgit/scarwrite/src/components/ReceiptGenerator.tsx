@@ -268,45 +268,45 @@ export function ReceiptGenerator({ data, autoDownload }: ReceiptGeneratorProps) 
           <div className="space-y-4 mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200 font-mono text-sm">
             {/* Receipt content */}
             <div className="text-center">
-              <p className="font-bold text-base">{settings.restaurant_name || 'ScarWrite'}</p>
-              <p className="font-bold text-sm mt-2">RECU DE TRANSACTION</p>
+              <p className="font-bold text-base text-black">{settings.restaurant_name || 'ScarWrite'}</p>
+              <p className="font-bold text-sm mt-2 text-black">RECU DE TRANSACTION</p>
             </div>
 
             <div className="border-t border-gray-300 pt-3">
-              <p>Date: {formatDate(data.operationDate)} {new Date().toLocaleTimeString('fr-FR')}</p>
-              <p>No. Operation: {data.operationNumber}</p>
-              {data.account && <p>Compte: {data.account}</p>}
+              <p className="text-black font-semibold">Date: {formatDate(data.operationDate)} {new Date().toLocaleTimeString('fr-FR')}</p>
+              <p className="text-black font-semibold">No. Operation: {data.operationNumber}</p>
+              {data.account && <p className="text-black font-semibold">Compte: {data.account}</p>}
             </div>
 
             <div className="border-t border-gray-300 pt-3">
-              <p className="font-bold text-base">{getOperationTypeLabel(data.operationType)}</p>
-              <p>Service: {data.serviceType}</p>
-              {data.senderName && <p>Expediteur: {data.senderName}</p>}
-              {data.receiverName && <p>Recepteur: {data.receiverName}</p>}
+              <p className="font-bold text-base text-black">{getOperationTypeLabel(data.operationType)}</p>
+              <p className="text-black">Service: {data.serviceType}</p>
+              {data.senderName && <p className="text-black">Expediteur: {data.senderName}</p>}
+              {data.receiverName && <p className="text-black">Recepteur: {data.receiverName}</p>}
             </div>
 
             <div className="border-t border-gray-300 pt-3">
               <div className="flex justify-between">
-                <span>{isWithdrawal ? 'Montant Retiré:' : 'Montant Principal:'}</span>
-                <span className="font-bold">{formatCurrency(data.principalAmount)}</span>
+                <span className="text-black">{isWithdrawal ? 'Montant Retiré:' : 'Montant Principal:'}</span>
+                <span className="font-bold text-black">{formatCurrency(data.principalAmount)}</span>
               </div>
               {data.fees > 0 && (
                 <div className="flex justify-between">
-                  <span>Frais / Commission:</span>
-                  <span className="font-bold">{formatCurrency(data.fees)}</span>
+                  <span className="text-black">Frais / Commission:</span>
+                  <span className="font-bold text-black">{formatCurrency(data.fees)}</span>
                 </div>
               )}
               <div className="flex justify-between border-t border-gray-300 pt-2 mt-2 font-bold">
-                <span>{isWithdrawal ? 'MONTANT DÛ (FRAIS):' : 'TOTAL:'}</span>
-                <span>{formatCurrency(totalAmount)}</span>
+                <span className="text-black">{isWithdrawal ? 'MONTANT DÛ (FRAIS):' : 'TOTAL:'}</span>
+                <span className="text-black">{formatCurrency(totalAmount)}</span>
               </div>
             </div>
 
             <div className="border-t border-gray-300 pt-3">
-              <p className="text-xs text-center text-gray-600">Compte 53 (Caisse) / 51 (Numerique)</p>
+              <p className="text-xs text-center text-black">Compte 53 (Caisse) / 51 (Numerique)</p>
               <div className="mt-4">
                 <div className="border-t border-gray-300 w-40 mx-auto h-0" />
-                <p className="text-center text-xs mt-1">Signature client</p>
+                <p className="text-center text-xs mt-1 text-black font-semibold">Signature client</p>
               </div>
             </div>
           </div>

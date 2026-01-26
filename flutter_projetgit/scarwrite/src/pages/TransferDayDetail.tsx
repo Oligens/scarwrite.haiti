@@ -80,9 +80,9 @@ export default function TransferDayDetail() {
         <div className="relative z-10">
           <header className="border-b border-border/50 bg-card/50 backdrop-blur-xl">
             <div className="container flex h-16 items-center gap-4">
-              <Button variant="ghost" size="icon" onClick={() => setEditingTransfer(null)}>
-                <ArrowLeft className="h-5 w-5" />
-              </Button>
+                <Button size="icon" onClick={() => setEditingTransfer(null)} className="bg-amber-400 text-black hover:bg-amber-500 rounded-lg">
+                  <ArrowLeft className="h-5 w-5" />
+                </Button>
               <h1 className="font-display text-lg font-bold text-gradient-gold">
                 Modifier le transfert
               </h1>
@@ -112,7 +112,7 @@ export default function TransferDayDetail() {
       <div className="relative z-10">
         <header className="border-b border-border/50 bg-card/50 backdrop-blur-xl">
           <div className="container flex h-16 items-center gap-4">
-            <Button asChild variant="ghost" size="icon">
+            <Button asChild size="icon" className="bg-amber-400 text-black hover:bg-amber-500 rounded-lg">
               <Link to="/transfers/calendar">
                 <ArrowLeft className="h-5 w-5" />
               </Link>

@@ -265,14 +265,13 @@ export default function Transfers() {
 
           {/* Action Buttons */}
           <div className="grid gap-4 sm:grid-cols-2">
-            <Button 
-              variant="outline"
-              className="h-16 border-primary/30 bg-card hover:bg-primary/5"
-              onClick={() => setViewMode('type-detail')}
-            >
-              <Smartphone className="mr-3 h-5 w-5 text-primary" />
-              <span className="text-black font-bold">Gérer les soldes par type</span>
-            </Button>
+              <Button 
+                className="h-16 bg-amber-400 text-black font-bold hover:bg-amber-500"
+                onClick={() => setViewMode('type-detail')}
+              >
+                <Smartphone className="mr-3 h-5 w-5 text-black" />
+                <span className="text-black font-bold">Gérer les soldes par type</span>
+              </Button>
 
             <Button 
               asChild
@@ -285,11 +284,10 @@ export default function Transfers() {
               </Link>
             </Button>
             <Button 
-              variant="outline"
-              className="h-16 border-primary/30 bg-card hover:bg-primary/5"
+              className="h-16 bg-amber-400 text-black font-bold hover:bg-amber-500"
               onClick={handleViewOperations}
             >
-              <FileText className="mr-3 h-5 w-5 text-primary" />
+              <FileText className="mr-3 h-5 w-5 text-black" />
               <span className="text-black font-bold">Voir toutes les opérations</span>
             </Button>
           </div>
@@ -351,10 +349,9 @@ export default function Transfers() {
       {viewMode === 'select-type' && (
         <div className="max-w-md mx-auto">
           <Button 
-            variant="ghost" 
             size="icon" 
             onClick={handleBack}
-            className="mb-4 text-foreground"
+            className="mb-4 bg-amber-400 text-black hover:bg-amber-500 rounded-lg"
           >
             <ArrowLeft className="h-5 w-5" />
           </Button>
@@ -367,10 +364,9 @@ export default function Transfers() {
       {viewMode === 'type-detail' && (
         <div className="max-w-md mx-auto">
           <Button 
-            variant="ghost" 
             size="icon" 
             onClick={handleBack}
-            className="mb-4 text-foreground"
+            className="mb-4 bg-amber-400 text-black hover:bg-amber-500 rounded-lg"
           >
             <ArrowLeft className="h-5 w-5" />
           </Button>
@@ -460,10 +456,10 @@ export default function Transfers() {
                   {operations.length} opération{operations.length !== 1 ? 's' : ''} trouvée{operations.length !== 1 ? 's' : ''}
                 </p>
               </div>
-              <Button variant="outline" onClick={handleBack}>
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Retour
-              </Button>
+                <Button onClick={handleBack} className="bg-amber-400 text-black font-bold hover:bg-amber-500">
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Retour
+                </Button>
             </div>
           </div>
 
