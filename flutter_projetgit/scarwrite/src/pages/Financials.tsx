@@ -2,7 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { getDynamicProfitAndLoss, getRetainedEarnings, getBalanceSheet, createAccountingTransaction, addFixedAsset } from '@/lib/storage';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
+import { HelpCircle } from '@/lib/lucide-react';
+import { getDynamicProfitAndLoss, getRetainedEarnings, getBalanceSheet, createAccountingTransaction, addFixedAsset, calculateTaxesFromAccounting } from '@/lib/storage';
 import { payDividends, transferUndistributedToBNR } from '@/lib/storage';
 import jsPDF from 'jspdf';
 import { downloadPDF } from '@/lib/pdf';
@@ -93,43 +95,152 @@ export default function Financials({ onClose }: { onClose?: () => void }) {
           </div>
 
           {tab === 'pl' && (
-            <Card>
-              <CardHeader>
-                <CardTitle>État des Résultats (P&L)</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="p-4">
-                    <h4 className="font-semibold text-sm text-black">Chiffre d'Affaires (Ventes + Honoraires)</h4>
-                    <div className="text-black font-mono text-lg">{pl?.totalRevenues ?? 0}</div>
+            <div className="space-y-6">
+              {/* 1. Performance Opérationnelle */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>1. Performance Opérationnelle</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="w-full overflow-x-auto">
+                    <table className="w-full text-sm table-auto">
+                      <thead>
+                        <tr className="text-left text-xs text-muted-foreground border-b">
+                          <th className="py-2">Libellé</th>
+                          <th className="py-2 text-right">Montant</th>
+                          <th className="py-2 text-right">% du CA</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td className="py-2">Chiffre d'Affaires (Ventes de produits)</td>
+                          <td className="py-2 text-right font-mono text-black">{(pl?.revenuesProducts ?? 0).toFixed(2)}</td>
+                          <td className="py-2 text-right font-mono text-black">{pl?.totalRevenues ? ((pl.revenuesProducts / pl.totalRevenues) * 100).toFixed(1) + '%' : '—'}</td>
+                        </tr>
+                        <tr>
+                          <td className="py-2">Chiffre d'Affaires (Prestations / Services)</td>
+                          <td className="py-2 text-right font-mono text-black">{(pl?.revenuesServices ?? 0).toFixed(2)}</td>
+                          <td className="py-2 text-right font-mono text-black">{pl?.totalRevenues ? ((pl.revenuesServices / pl.totalRevenues) * 100).toFixed(1) + '%' : '—'}</td>
+                        </tr>
+                        <tr>
+                          <td className="py-2">Frais & Commissions (7xx)</td>
+                          <td className="py-2 text-right font-mono text-black">{(pl?.feesAndCommissions ?? 0).toFixed(2)}</td>
+                          <td className="py-2 text-right font-mono text-black">{pl?.totalRevenues ? ((pl.feesAndCommissions / pl.totalRevenues) * 100).toFixed(1) + '%' : '—'}</td>
+                        </tr>
+                        <tr className="border-t bg-blue-50 font-semibold">
+                          <td className="py-2">MARGE BRUTE</td>
+                          <td className="py-2 text-right font-mono text-black">{((pl?.totalRevenues ?? 0) - (pl?.cmv ?? 0)).toFixed(2)}</td>
+                          <td className="py-2 text-right font-mono text-black">{pl?.totalRevenues ? (((pl.totalRevenues - (pl.cmv||0)) / pl.totalRevenues) * 100).toFixed(1) + '%' : '—'}</td>
+                        </tr>
+                      </tbody>
+                    </table>
                   </div>
-                  <div className="p-4">
-                    <h4 className="font-semibold text-sm text-black">Coût des Marchandises Vendues (CMV)</h4>
-                    <div className="text-black font-mono text-lg text-right">{pl?.cmv ?? '(calculé depuis achats)'}</div>
+                </CardContent>
+              </Card>
+
+              {/* 2. Charges & Amortissements */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>2. Charges & Amortissements</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="w-full overflow-x-auto">
+                    <table className="w-full text-sm table-auto">
+                      <thead>
+                        <tr className="text-left text-xs text-muted-foreground border-b">
+                          <th className="py-2">Libellé</th>
+                          <th className="py-2 text-right">Montant</th>
+                          <th className="py-2 text-right">% du CA</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td className="py-2">Charges d'exploitation (6xx)</td>
+                          <td className="py-2 text-right font-mono text-black">{(pl?.expenses ?? 0).toFixed(2)}</td>
+                          <td className="py-2 text-right font-mono text-black">{pl?.totalRevenues ? ((pl.expenses / pl.totalRevenues) * 100).toFixed(1) + '%' : '—'}</td>
+                        </tr>
+                        <tr>
+                          <td className="py-2 pl-6 text-sm text-muted-foreground">• Dotations aux amortissements (simulé)</td>
+                          <td className="py-2 text-right font-mono text-black">{(pl?.amortization ?? 0).toFixed(2)}</td>
+                          <td className="py-2 text-right font-mono text-black">{pl?.totalRevenues ? ((pl.amortization / pl.totalRevenues) * 100).toFixed(1) + '%' : '—'}</td>
+                        </tr>
+                        <tr className="border-t">
+                          <td className="py-2 font-semibold">TOTAL CHARGES</td>
+                          <td className="py-2 text-right font-mono text-black">{((pl?.expenses ?? 0)).toFixed(2)}</td>
+                          <td className="py-2 text-right font-mono text-black">{pl?.totalRevenues ? (((pl.expenses) / pl.totalRevenues) * 100).toFixed(1) + '%' : '—'}</td>
+                        </tr>
+                      </tbody>
+                    </table>
                   </div>
-                  <div className="p-4">
-                    <h4 className="font-semibold text-sm text-black">Amortissement (simulé)</h4>
-                    <div className="text-black font-mono text-lg text-right">{pl?.amortization ?? 0} <span className="text-sm">(comptes: 215/281/681)</span></div>
+                </CardContent>
+              </Card>
+
+              {/* 3. Résultat Net & Fiscalité */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>3. Résultat Net & Fiscalité</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="w-full overflow-x-auto">
+                    <table className="w-full text-sm table-auto">
+                      <thead>
+                        <tr className="text-left text-xs text-muted-foreground border-b">
+                          <th className="py-2">Libellé</th>
+                          <th className="py-2 text-right">Montant</th>
+                          <th className="py-2 text-right">% du CA</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td className="py-2">Coût des Marchandises Vendues (CMV)</td>
+                          <td className="py-2 text-right font-mono text-black">{(pl?.cmv ?? 0).toFixed(2)}</td>
+                          <td className="py-2 text-right font-mono text-black">{pl?.totalRevenues ? ((pl.cmv / pl.totalRevenues) * 100).toFixed(1) + '%' : '—'}</td>
+                        </tr>
+                        <tr>
+                          <td className="py-2">Résultat d'exploitation</td>
+                          <td className="py-2 text-right font-mono text-black">{(pl?.netBeforeTaxes ?? 0).toFixed(2)}</td>
+                          <td className="py-2 text-right font-mono text-black">{pl?.totalRevenues ? ((pl.netBeforeTaxes / pl.totalRevenues) * 100).toFixed(1) + '%' : '—'}</td>
+                        </tr>
+                        <tr>
+                          <td className="py-2 flex items-center gap-2">Taxes collectées (TCA)
+                            <Tooltip>
+                              <TooltipTrigger>
+                                <span className="inline-flex items-center"><HelpCircle className="w-4 h-4 text-muted-foreground"/></span>
+                              </TooltipTrigger>
+                              <TooltipContent side="top">Les TCA sont extraites du module Fiscalité (registre des taxes collectées sur ventes).</TooltipContent>
+                            </Tooltip>
+                          </td>
+                          <td className="py-2 text-right font-mono text-black">{(pl?.taxes ?? 0).toFixed(2)}</td>
+                          <td className="py-2 text-right font-mono text-black">{pl?.totalRevenues ? ((pl.taxes / pl.totalRevenues) * 100).toFixed(1) + '%' : '—'}</td>
+                        </tr>
+                        <tr>
+                          <td className="py-2 flex items-center gap-2">Impôt sur le résultat
+                            <Tooltip>
+                              <TooltipTrigger>
+                                <span className="inline-flex items-center"><HelpCircle className="w-4 h-4 text-muted-foreground"/></span>
+                              </TooltipTrigger>
+                              <TooltipContent side="top">Impôt simulé calculé automatiquement (taux utilisé: 30% par défaut).</TooltipContent>
+                            </Tooltip>
+                          </td>
+                          <td className="py-2 text-right font-mono text-black">{(pl?.incomeTax ?? 0).toFixed(2)}</td>
+                          <td className="py-2 text-right font-mono text-black">{pl?.totalRevenues ? ((pl.incomeTax / pl.totalRevenues) * 100).toFixed(1) + '%' : '—'}</td>
+                        </tr>
+                        <tr className="border-t bg-gradient-gold">
+                          <td className="py-3 font-bold">BÉNÉFICE NET (APRÈS IMPÔTS)</td>
+                          <td className={`py-3 text-right font-mono text-xl ${pl?.netAfterTaxes >= 0 ? 'text-emerald-800' : 'text-rose-700'}`} style={{fontWeight:700}}>{(pl?.netAfterTaxes ?? 0).toFixed(2)}</td>
+                          <td className="py-3 text-right font-mono text-black">{pl?.totalRevenues ? ((pl.netAfterTaxes / pl.totalRevenues) * 100).toFixed(1) + '%' : '—'}</td>
+                        </tr>
+                      </tbody>
+                    </table>
                   </div>
-                  <div className="p-4">
-                    <h4 className="font-semibold text-sm text-black">Charges d'exploitation</h4>
-                    <div className="text-black font-mono text-lg">{pl?.expenses ?? 0}</div>
+                  <div className="mt-4 flex gap-3">
+                    <Button onClick={() => setShowNewCharge(true)} className="bg-emerald-600 text-white">+ Nouvelle Charge/Investissement</Button>
+                    <Button onClick={async () => { try { await payDividends(pl?.dividendsDistributed || 0); await load(); alert('Dividendes payés'); } catch(e){ alert('Erreur paiement dividendes'); } }} className="bg-rose-600 text-white">Payer les dividendes</Button>
+                    <Button onClick={async () => { try { const res = await transferUndistributedToBNR(startDate, endDate); await load(); alert(`Transféré aux BNR: ${res.transferred}`); } catch(e){ alert('Erreur affectation BNR'); } }} className="bg-slate-700 text-white">Affecter reste aux BNR</Button>
                   </div>
-                </div>
-                <div className="mt-4">
-                  <Button onClick={() => setShowNewCharge(true)} className="bg-emerald-600 text-white">+ Nouvelle Charge/Investissement</Button>
-                  <div className="mt-3 space-y-2">
-                    <div className="text-black">Taxes collectées (TCA): <span className="font-mono">{pl?.taxes ?? 0}</span></div>
-                    <div className="text-black">Impôt sur le revenu (30%): <span className="font-mono">{pl?.incomeTax ?? 0}</span></div>
-                    <div className="text-black font-bold">Résultat net final: <span className="font-mono">{pl?.netAfterTaxes ?? 0}</span></div>
-                    <div className="flex gap-2 mt-2">
-                      <Button onClick={async () => { try { await payDividends(pl?.dividendsDistributed || 0); await load(); alert('Dividendes payés'); } catch(e){ alert('Erreur paiement dividendes'); } }} className="bg-rose-600 text-white">Payer les dividendes</Button>
-                      <Button onClick={async () => { try { const res = await transferUndistributedToBNR(startDate, endDate); await load(); alert(`Transféré aux BNR: ${res.transferred}`); } catch(e){ alert('Erreur affectation BNR'); } }} className="bg-slate-700 text-white">Affecter reste aux BNR</Button>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </div>
           )}
 
           {/* New Charge / Investment Modal */}

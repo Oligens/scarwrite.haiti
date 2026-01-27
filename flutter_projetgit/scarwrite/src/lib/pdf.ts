@@ -342,7 +342,7 @@ export const generateTaxCertificateFromData = (
   month: number,
   transactions: Array<{ transaction_date: string; transaction_type: string; transaction_id: string; base_amount: number; tax_name: string; tax_percentage: number; tax_amount: number }>,
   summary: { totalTaxes?: number; breakdown?: Record<string, number> } = {},
-  opts?: { currency?: string }
+  opts?: { currency?: string; taxConfigs?: Array<{ name: string; percentage: number }> }
 ): jsPDF => {
   const doc = createDoc();
   const settings = getSettings();
@@ -394,7 +394,10 @@ export const generateTaxCertificateFromData = (
     const tx = `${date} | ${t.transaction_type}/${t.transaction_id}`;
     doc.text(tx, 14, y);
     writeBoldAmount(doc, 100, y, t.base_amount, currency, { align: 'right' });
-    doc.text(`${t.tax_name} (${t.tax_percentage}%)`, 130, y);
+    const taxPct = (t.tax_percentage != null && !Number.isNaN(Number(t.tax_percentage)) && Number(t.tax_percentage) > 0)
+      ? Number(t.tax_percentage)
+      : (opts?.taxConfigs?.find(tc => tc.name === t.tax_name)?.percentage ?? 0);
+    doc.text(`${t.tax_name} (${taxPct}%)`, 130, y);
     writeBoldAmount(doc, 180, y, t.tax_amount, currency, { align: 'right' });
     y += 6;
   });

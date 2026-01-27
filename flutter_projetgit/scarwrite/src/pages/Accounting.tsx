@@ -62,10 +62,10 @@ export default function Accounting(): JSX.Element {
       <div className="p-6">
         <div className="flex justify-between items-center mb-6">
           <div className="flex items-center gap-3">
-            <Button onClick={() => window.history.back()} className="inline-flex items-center gap-2 bg-card/80 hover:bg-card px-3 py-1 rounded">
+            <Button onClick={() => window.history.back()} className="inline-flex items-center gap-2 bg-transparent hover:bg-card px-3 py-1 rounded text-[#D4AF37] border border-transparent">
               <span className="mr-1">◀</span> Retour
             </Button>
-            <h1 className="text-2xl font-bold">Comptabilité</h1>
+            <h1 className="text-2xl font-bold text-[#D4AF37]">Comptabilité</h1>
           </div>
           {/* Button to open full-screen Financials view */}
           <div>

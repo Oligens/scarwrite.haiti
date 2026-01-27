@@ -9,7 +9,10 @@ interface AppHeaderProps {
 
 export function AppHeader({ title, onToggleSidebar, sidebarCollapsed }: AppHeaderProps) {
   const settings = getSettings();
-  const currentYear = new Date().getFullYear();
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth();
+  const fiscalYearStart = currentMonth >= 9 ? currentYear : currentYear - 1;
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-navy-light bg-navy-deep px-4 md:px-8 shadow-sm">
@@ -39,7 +42,10 @@ export function AppHeader({ title, onToggleSidebar, sidebarCollapsed }: AppHeade
       {/* Center - Title if provided */}
       {title && (
         <div className="flex items-center">
-          <h1 className="text-luxury-title text-white">{title}</h1>
+          <div className="flex flex-col items-center">
+            <h1 className="text-luxury-title text-white">{title}</h1>
+            <div className="text-xs text-gray-300">Année fiscale : {fiscalYearStart} - {fiscalYearStart + 1}</div>
+          </div>
         </div>
       )}
 

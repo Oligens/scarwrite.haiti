@@ -57,17 +57,24 @@ export default function Fiscality() {
       breakdown[t.tax_name] = (breakdown[t.tax_name] || 0) + amt;
     });
 
-    // Use the new PDF generator that accepts provided rows so the exported PDF
-    // matches exactly what the user sees on-screen (filtered state)
-    const doc = generateTaxCertificateFromData(year, month, transactions.map(t => ({
-      transaction_date: t.transaction_date,
-      transaction_type: t.transaction_type,
-      transaction_id: t.transaction_id,
-      base_amount: Number(t.base_amount || 0),
-      tax_name: t.tax_name,
-      tax_percentage: Number(t.tax_percentage || 0),
-      tax_amount: Number(t.tax_amount || 0),
-    })), { totalTaxes, breakdown });
+    // Ensure the PDF receives the active tax registry so the table can show Taux
+    const taxes = await (await import('@/lib/storage')).getTaxConfigs();
+
+    const doc = generateTaxCertificateFromData(
+      year,
+      month,
+      transactions.map(t => ({
+        transaction_date: t.transaction_date,
+        transaction_type: t.transaction_type,
+        transaction_id: t.transaction_id,
+        base_amount: Number(t.base_amount || 0),
+        tax_name: t.tax_name,
+        tax_percentage: Number(t.tax_percentage || 0),
+        tax_amount: Number(t.tax_amount || 0),
+      })),
+      { totalTaxes, breakdown },
+      { taxConfigs: taxes }
+    );
 
     downloadPDF(doc, `certificat-fiscal-${year}-${String(month).padStart(2, '0')}.pdf`);
   };

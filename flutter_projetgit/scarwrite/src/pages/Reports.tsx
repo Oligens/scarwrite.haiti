@@ -2,9 +2,8 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { CalendarDays, TrendingUp, Download } from "@/lib/lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { generateFinancialOperationsPDF } from "@/lib/pdf";
-import { getOperationsByService } from "@/lib/storage";
-import { TransferType } from "@/lib/storage";
+import { generateDailyPDF, generateMonthlyPDF, generateAnnualPDF } from "@/lib/pdf";
+import { getSalesByDate, getSalesByMonth, getSalesByFiscalYear } from "@/lib/storage";
 
 const MONTHS_FR = [
   "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
@@ -32,22 +31,12 @@ export default function Reports() {
   const downloadDailyReport = async () => {
     try {
       const todayStr = today.toISOString().split('T')[0];
-      const services: TransferType[] = ['zelle', 'moncash', 'natcash', 'cam_transfert', 'western_union', 'moneygram', 'autre'];
-      const allOperations = [];
-
-      for (const service of services) {
-        const operations = await getOperationsByService(service);
-        const dailyOps = operations.filter(op => op.operation_date === todayStr);
-        allOperations.push(...dailyOps);
-      }
-
-      if (allOperations.length === 0) {
-        alert('Aucune opération trouvée pour aujourd\'hui');
+      const sales = await getSalesByDate(todayStr);
+      if (!sales || sales.length === 0) {
+        alert('Aucune vente trouvée pour aujourd\'hui');
         return;
       }
-
-      const opts = (() => { try { return JSON.parse(localStorage.getItem('reportOptions') || 'null'); } catch { return null; } })();
-      const doc = generateFinancialOperationsPDF(allOperations, todayStr, todayStr, opts || undefined);
+      const doc = generateDailyPDF(todayStr, sales);
       doc.save(`rapport-journalier-${todayStr}.pdf`);
     } catch (error) {
       console.error('Erreur génération PDF:', error);
@@ -57,27 +46,16 @@ export default function Reports() {
 
   const downloadMonthlyReport = async (year: number, month: number) => {
     try {
-      const services: TransferType[] = ['zelle', 'moncash', 'natcash', 'cam_transfert', 'western_union', 'moneygram', 'autre'];
-      const allOperations = [];
-
-      for (const service of services) {
-        const operations = await getOperationsByService(service);
-        const monthlyOps = operations.filter(op => {
-          const opDate = new Date(op.operation_date);
-          return opDate.getFullYear() === year && opDate.getMonth() === month - 1;
-        });
-        allOperations.push(...monthlyOps);
-      }
-
-      if (allOperations.length === 0) {
-        alert('Aucune opération trouvée pour ce mois');
+      const sales = await getSalesByMonth(year, month);
+      if (!sales || sales.length === 0) {
+        alert('Aucune vente trouvée pour ce mois');
         return;
       }
-
-      const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
-      const endDate = new Date(year, month, 0).toISOString().split('T')[0];
-      const opts = (() => { try { return JSON.parse(localStorage.getItem('reportOptions') || 'null'); } catch { return null; } })();
-      const doc = generateFinancialOperationsPDF(allOperations, startDate, endDate, opts || undefined);
+      // Build daily totals expected by generateMonthlyPDF
+      const map: Record<string, number> = {};
+      sales.forEach(s => { map[s.sale_date] = (map[s.sale_date] || 0) + (s.total || 0); });
+      const dailyTotals = Object.entries(map).map(([date, total]) => ({ date, total }));
+      const doc = generateMonthlyPDF(year, month, dailyTotals);
       doc.save(`rapport-mensuel-${MONTHS_FR[month - 1].toLowerCase()}-${year}.pdf`);
     } catch (error) {
       console.error('Erreur génération PDF:', error);
@@ -87,28 +65,23 @@ export default function Reports() {
 
   const downloadAnnualReport = async () => {
     try {
-      const services: TransferType[] = ['zelle', 'moncash', 'natcash', 'cam_transfert', 'western_union', 'moneygram', 'autre'];
-      const allOperations = [];
-
-      for (const service of services) {
-        const operations = await getOperationsByService(service);
-        const annualOps = operations.filter(op => {
-          const opDate = new Date(op.operation_date);
-          const opFiscalYear = opDate.getMonth() >= 9 ? opDate.getFullYear() : opDate.getFullYear() - 1;
-          return opFiscalYear === fiscalYearStart;
-        });
-        allOperations.push(...annualOps);
-      }
-
-      if (allOperations.length === 0) {
-        alert('Aucune opération trouvée pour cette année fiscale');
+      const sales = await getSalesByFiscalYear(fiscalYearStart);
+      if (!sales || sales.length === 0) {
+        alert('Aucune vente trouvée pour cette année fiscale');
         return;
       }
-
-      const startDate = `${fiscalYearStart}-10-01`;
-      const endDate = `${fiscalYearStart + 1}-09-30`;
-      const opts = (() => { try { return JSON.parse(localStorage.getItem('reportOptions') || 'null'); } catch { return null; } })();
-      const doc = generateFinancialOperationsPDF(allOperations, startDate, endDate, opts || undefined);
+      // Build monthly totals expected by generateAnnualPDF
+      const monthsMap: Record<string, { label: string; year: number; total: number }> = {};
+      for (const s of sales) {
+        const d = new Date(s.sale_date);
+        const monthIdx = d.getMonth();
+        const year = d.getFullYear();
+        const key = `${year}-${String(monthIdx+1).padStart(2,'0')}`;
+        if (!monthsMap[key]) monthsMap[key] = { label: MONTHS_FR[monthIdx], year, total: 0 };
+        monthsMap[key].total += s.total || 0;
+      }
+      const monthlyTotals = Object.values(monthsMap);
+      const doc = generateAnnualPDF(fiscalYearStart, monthlyTotals);
       doc.save(`rapport-annuel-${fiscalYearStart}-${fiscalYearStart + 1}.pdf`);
     } catch (error) {
       console.error('Erreur génération PDF:', error);
