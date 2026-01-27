@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, Pencil, Trash2, X, PlusCircle } from "@/lib/lucide-react";
+import { Plus, Pencil, Trash, X, PlusCircle } from "@/lib/lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -390,7 +390,7 @@ export default function Products() {
                         className="h-8 w-8 text-muted-foreground hover:text-destructive"
                         title="Supprimer"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash className="h-4 w-4" />
                       </Button>
                     </div>
                     {!product.is_service && (

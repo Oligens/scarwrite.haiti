@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Plus, Calendar, BarChart3, Pencil, Trash2, PiggyBank, Wallet, ArrowLeft, DollarSign, TrendingUp, Smartphone, FileText } from "@/lib/lucide-react";
+import { Plus, Calendar, BarChart3, Pencil, Trash, PiggyBank, Wallet, ArrowLeft, DollarSign, TrendingUp, Smartphone, FileText } from "@/lib/lucide-react";
 import { TransferTypeSelector } from "@/components/TransferTypeSelector";
 import { TransferForm } from "@/components/TransferForm";
 import { BalanceHeader } from "@/components/BalanceHeader";
@@ -327,7 +327,7 @@ export default function Transfers() {
                         className="h-8 w-8 text-destructive"
                         onClick={() => handleDeleteTransfer(transfer.id)}
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash className="h-4 w-4" />
                       </Button>
                     </div>
                   </div>
@@ -514,7 +514,7 @@ export default function Transfers() {
                       onClick={() => handleDeleteOperation(operation.id)}
                       className="text-destructive hover:text-destructive"
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <Trash className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>

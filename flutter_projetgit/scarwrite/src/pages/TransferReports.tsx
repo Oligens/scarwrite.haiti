@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Calendar, FileText, TrendingUp, Download, Edit, Trash2 } from "@/lib/lucide-react";
+import { ArrowLeft, Calendar, FileText, TrendingUp, Download, Edit, Trash } from "@/lib/lucide-react";
 import {
   getOperationsByDateRange,
   getSettings,
@@ -381,7 +381,7 @@ export default function TransferReports() {
                             variant="ghost"
                             onClick={() => handleDeleteOperation(op.id)}
                           >
-                            <Trash2 className="h-4 w-4 text-destructive" />
+                            <Trash className="h-4 w-4 text-destructive" />
                           </Button>
                         </div>
                       </div>

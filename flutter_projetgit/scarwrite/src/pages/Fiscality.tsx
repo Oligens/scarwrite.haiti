@@ -59,42 +59,79 @@ export default function Fiscality() {
     // Ensure the PDF receives the active tax registry so the table can show Taux
     const taxes = await (await import('@/lib/storage')).getTaxConfigs();
 
-    // Map rows exactly: [date, description, baseHT.toFixed(2), taux%, montant.toFixed(2)]
-    const mapped = transactions.map(t => {
-      const base = Number(t.base_amount || 0);
-      const taxAmt = Number(t.tax_amount || 0);
-      totalTaxes += taxAmt;
-      breakdown[t.tax_name] = (breakdown[t.tax_name] || 0) + taxAmt;
-
-      // Normalize rate: accept 0.18 or 18
+    // Map rows exactly as requested by the spec: [date, description, baseHT, taux%, montant]
+    const filteredTaxes = transactions.map(t => {
+      const date = t.transaction_date ? new Date(t.transaction_date).toLocaleDateString('fr-FR') : '';
+      const description = `${t.transaction_type || ''}/${t.transaction_id || ''}`;
+      const baseHT = Number(t.base_amount || 0);
       let rawRate = Number(t.tax_percentage ?? 0);
       if (!Number.isFinite(rawRate)) rawRate = 0;
-      const displayRate = rawRate > 0 && rawRate <= 1 ? rawRate * 100 : rawRate;
-
+      const rate = rawRate > 0 && rawRate <= 1 ? rawRate : rawRate; // assume already percentage
+      const amount = Number(t.tax_amount || 0);
+      totalTaxes += amount;
+      breakdown[t.tax_name] = (breakdown[t.tax_name] || 0) + amount;
       return {
-        transaction_date: t.transaction_date,
-        transaction_type: t.transaction_type,
-        transaction_id: t.transaction_id,
-        base_amount: base,
-        tax_name: t.tax_name,
-        tax_percentage: displayRate,
-        tax_amount: taxAmt,
+        date,
+        description,
+        baseHT,
+        rate,
+        amount,
       };
     });
 
-    if (!mapped.length) {
+    const sumAmounts = filteredTaxes.reduce((s, it) => s + (Number(it.amount) || 0), 0);
+    if (sumAmounts === 0 && !(automatedTaxData && automatedTaxData.totalTaxes > 0)) {
       // eslint-disable-next-line no-console
       console.error('Aucun enregistrement fiscal sélectionné — export annulé');
-      alert('Aucune transaction fiscale affichée pour la période sélectionnée. Vérifiez les filtres avant d\'exporter.');
+      alert('Aucune transaction fiscale trouvée pour la période sélectionnée. Vérifiez les filtres avant d\'exporter.');
       return;
+    }
+
+    // Build preformatted table body as requested
+    const tableBody = filteredTaxes.map(t => [
+      t.date,
+      t.description,
+      Number(t.baseHT).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      ((Number(t.rate) || 0) * 1) <= 1 ? `${(Number(t.rate) * 100)}%` : `${Number(t.rate)}%`,
+      Number(t.amount).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+    ]);
+
+    // Ensure lines for major revenue accounts are present (701, 706)
+    const has701 = tableBody.some(r => String(r[1]).includes('701') || String(r[1]).toLowerCase().includes('ventes'));
+    const has706 = tableBody.some(r => String(r[1]).includes('706') || String(r[1]).toLowerCase().includes('courtage') || String(r[1]).toLowerCase().includes('services'));
+    if (!has701) {
+      tableBody.unshift([
+        '',
+        '701 - Ventes de produits',
+        Number(0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        '0%',
+        Number(0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      ]);
+    }
+    if (!has706) {
+      tableBody.unshift([
+        '',
+        '706 - Courtage & Services',
+        Number(0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        '0%',
+        Number(0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      ]);
     }
 
     const doc = generateTaxCertificateFromData(
       exportYear,
       exportMonth,
-      mapped,
+      transactions.map(t => ({
+        transaction_date: t.transaction_date,
+        transaction_type: t.transaction_type,
+        transaction_id: t.transaction_id,
+        base_amount: Number(t.base_amount || 0),
+        tax_name: t.tax_name,
+        tax_percentage: Number(t.tax_percentage || 0),
+        tax_amount: Number(t.tax_amount || 0),
+      })),
       { totalTaxes, breakdown },
-      { taxConfigs: taxes }
+      { taxConfigs: taxes, preformattedBody: tableBody, currency: 'G' }
     );
 
     downloadPDF(doc, `certificat-fiscal-${exportYear}-${String(exportMonth).padStart(2, '0')}.pdf`);

@@ -1,7 +1,7 @@
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, FileText, Share2, Download, Trash2, Pencil } from "@/lib/lucide-react";
+import { ArrowLeft, FileText, Share2, Download, Trash, Pencil } from "@/lib/lucide-react";
 import { getTransfersByDate, deleteTransfer, getSettings, Transfer } from "@/lib/storage";
 import { getTransferTypeName } from "@/components/TransferTypeSelector";
 import { generateTransferDayPDF, sharePDF, downloadPDF } from "@/lib/pdf";
@@ -208,7 +208,7 @@ function TransferCard({ transfer, currencySymbol, onEdit, onDelete }: TransferCa
             <Pencil className="h-4 w-4" />
           </Button>
           <Button variant="ghost" size="icon" onClick={onDelete} className="text-destructive">
-            <Trash2 className="h-4 w-4" />
+            <Trash className="h-4 w-4" />
           </Button>
         </div>
       </div>

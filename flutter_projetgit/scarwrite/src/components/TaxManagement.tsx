@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Trash2, Plus } from "@/lib/lucide-react";
+import { Trash, Plus } from "@/lib/lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   getTaxConfigs,
@@ -208,7 +208,7 @@ export function TaxManagement() {
                   className="text-destructive hover:text-destructive"
                   onClick={() => handleDeleteTax(tax.id)}
                 >
-                  <Trash2 className="h-4 w-4" />
+                  <Trash className="h-4 w-4" />
                 </Button>
               </div>
             </div>

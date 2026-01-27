@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Pencil, Check, X, CreditCard, Banknote, PlusCircle, Trash2 } from "@/lib/lucide-react";
+import { Pencil, Check, X, CreditCard, Banknote, PlusCircle, Trash } from "@/lib/lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { 
@@ -206,7 +206,7 @@ export function BalanceHeader({ transferType, customTypeName, onBalanceChange, r
                     <PlusCircle className="h-5 w-5" />
                   </Button>
                   <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => { setDeleteTarget('digital'); setShowDeleteDialog(true); }}>
-                    <Trash2 className="h-3 w-3 text-destructive" />
+                    <Trash className="h-3 w-3 text-destructive" />
                   </Button>
                 </div>
               </div>
@@ -251,7 +251,7 @@ export function BalanceHeader({ transferType, customTypeName, onBalanceChange, r
                     <PlusCircle className="h-5 w-5" />
                   </Button>
                   <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => { setDeleteTarget('cash'); setShowDeleteDialog(true); }}>
-                    <Trash2 className="h-3 w-3 text-destructive" />
+                    <Trash className="h-3 w-3 text-destructive" />
                   </Button>
                 </div>
               </div>
@@ -338,10 +338,12 @@ export function BalanceHeader({ transferType, customTypeName, onBalanceChange, r
               (async () => {
                 try {
                   if (!deleteTarget) return;
-                  const update = deleteTarget === 'cash' ? { cash_balance: 0 } : { digital_balance: 0 };
-                  const newB = updateTypeBalance(transferType, customTypeName, update);
-                  setBalance(prev => ({ ...prev, ...newB }));
-                  toast({ description: `Compte ${deleteTarget === 'cash' ? 'cash' : 'numérique'} réinitialisé.` });
+                  // Create accounting entries to zero the balance and reflect the change in the journal
+                  await resetBalanceWithEntry({ transferType, customServiceName: customTypeName, balanceType: deleteTarget, reason: `Réinitialisation solde ${deleteTarget}` });
+                  // Re-fetch computed balance
+                  const computed = await getTypeBalanceFromAccounting(transferType, customTypeName);
+                  setBalance({ cash_balance: computed.cash_balance, digital_balance: computed.digital_balance });
+                  toast({ description: `Compte ${deleteTarget === 'cash' ? 'cash' : 'numérique'} réinitialisé (écriture comptable créée).` });
                   setShowDeleteDialog(false);
                   setDeleteTarget(null);
                   onBalanceChange?.();

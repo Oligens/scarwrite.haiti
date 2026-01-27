@@ -342,7 +342,7 @@ export const generateTaxCertificateFromData = (
   month: number,
   transactions: Array<{ transaction_date: string; transaction_type: string; transaction_id: string; base_amount: number; tax_name: string; tax_percentage: number; tax_amount: number }>,
   summary: { totalTaxes?: number; breakdown?: Record<string, number> } = {},
-  opts?: { currency?: string; taxConfigs?: Array<{ name: string; percentage: number }> }
+  opts?: { currency?: string; taxConfigs?: Array<{ name: string; percentage: number }>; preformattedBody?: string[][] }
 ): jsPDF => {
   const doc = createDoc();
   const settings = getSettings();
@@ -401,7 +401,10 @@ export const generateTaxCertificateFromData = (
     return 0;
   };
 
-  const tableBody = (transactions || []).map((t) => {
+  // If caller provided a preformatted table body, use it directly.
+  const tableBody = opts?.preformattedBody
+    ? opts.preformattedBody
+    : (transactions || []).map((t) => {
     const dateStr = t.transaction_date ? new Date(t.transaction_date).toLocaleDateString('fr-FR') : '';
     const description = `${t.transaction_type || ''}/${t.transaction_id || ''}`;
     const base = Number(t.base_amount ?? 0);
@@ -415,6 +418,22 @@ export const generateTaxCertificateFromData = (
       amount.toFixed(2),
     ];
   });
+
+  // If a preformatted body was provided without a total in summary, compute it from the body.
+  if (opts?.preformattedBody && (summary.totalTaxes == null || Number(summary.totalTaxes) === 0)) {
+    try {
+      const computedTotal = opts.preformattedBody.reduce((s, row) => {
+        const raw = row[4] || '0';
+        // remove spaces and currency symbols
+        const cleaned = String(raw).replace(/[^0-9,.-]/g, '').replace(/,/g, '.');
+        const n = Number(cleaned) || 0;
+        return s + n;
+      }, 0);
+      summary.totalTaxes = Math.round(computedTotal * 100) / 100;
+    } catch (e) {
+      // ignore
+    }
+  }
 
   // Use autoTable for consistent table layout in PDFs
   try {

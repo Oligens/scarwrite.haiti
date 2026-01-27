@@ -29,6 +29,7 @@ export const Download = createIcon("M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2m-4-4l-
 export const Upload = createIcon("M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2m-4-8l-4-4m0 0l-4 4m4-4v12");
 export const Pencil = createIcon("M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7");
 export const Trash2 = createIcon("M3 6h18m2 0v2m-4 0v10a2 2 0 01-2 2H9a2 2 0 01-2-2V8h-3m4-4h4a1 1 0 011 1v1H7V3a1 1 0 011-1z");
+export const Trash = Trash2;
 export const Save = createIcon("M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z");
 export const MoreHorizontal = createIcon("M12 5a2 2 0 110-4 2 2 0 010 4zm0 7a2 2 0 110-4 2 2 0 010 4zm0 7a2 2 0 110-4 2 2 0 010 4z");
 export const Edit = createIcon("M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7");

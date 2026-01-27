@@ -210,6 +210,7 @@ export const getSettings = (): Settings => {
     currency_symbol: 'G',
     fiscal_year_start: 10,
     language: 'fr',
+    income_tax_rate: 30,
   };
 
   try {
@@ -2155,8 +2156,15 @@ export const getDynamicProfitAndLoss = async (startDate: string, endDate: string
 
     const netBeforeTaxes = Math.round((totalRevenues - expensesWithAmort - cmvTotal) * 100) / 100;
 
-    // Income tax calculation: use a default 30% rate (can be made configurable)
-    const INCOME_TAX_RATE = 0.30;
+    // Income tax calculation: use configured rate from settings (percent)
+    let INCOME_TAX_RATE = 0.30;
+    try {
+      const s = getSettings();
+      const rate = Number(s?.income_tax_rate ?? 30);
+      INCOME_TAX_RATE = isNaN(rate) ? 0.30 : (rate / 100);
+    } catch (e) {
+      INCOME_TAX_RATE = 0.30;
+    }
     const incomeTax = Math.round(Math.max(0, netBeforeTaxes) * INCOME_TAX_RATE * 100) / 100;
 
     // Net after taxes = NetBeforeTaxes - (TCA collected) - (Income tax)
@@ -2305,9 +2313,16 @@ export const getBalanceSheet = async (asOfDate: string): Promise<{ assets: numbe
 
     const computedEquity = Math.round((apports + (bnr || 0) + resultNet) * 100) / 100;
 
-    // Validation: check accounting identity Actif = Passif + Capitaux
+    // Compute income tax provision (non-persistent) for display in Bilan
+    const provision444 = Number.isFinite(resultPnl.incomeTax) ? resultPnl.incomeTax : 0;
+    const liabilitiesWithProvision = Math.round((finalLiabilities + provision444) * 100) / 100;
+
+    // Validation: check accounting identity Actif = Passif + Capitaux (without simulated provision)
     const discrepancy = Math.round((finalAssets - (finalLiabilities + computedEquity)) * 100) / 100;
     const balanced = Math.abs(discrepancy) < 0.01;
+    // Also compute identity if we include the simulated provision (for informational purposes)
+    const discrepancyWithProvision = Math.round((finalAssets - (liabilitiesWithProvision + computedEquity)) * 100) / 100;
+    const balancedWithProvision = Math.abs(discrepancyWithProvision) < 0.01;
 
     return {
       assets: finalAssets,
@@ -2323,6 +2338,10 @@ export const getBalanceSheet = async (asOfDate: string): Promise<{ assets: numbe
       resultNet: Math.round(resultNet * 100) / 100,
       balanced,
       discrepancy,
+      provision444: Math.round(provision444 * 100) / 100,
+      liabilitiesWithProvision,
+      balancedWithProvision,
+      discrepancyWithProvision,
     };
   } catch (err) {
     console.error('Erreur génération bilan:', err);
@@ -2615,6 +2634,59 @@ export const clearAllTransactions = async (): Promise<void> => {
   }
 };
 
+// Full factory reset: clear almost all user data including products, taxes, balances and settings.
+// WARNING: This is irreversible. Caller must confirm with the user.
+export const factoryReset = async (): Promise<void> => {
+  try {
+    // Clear localStorage first (user requested technique)
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.clear();
+      }
+    } catch (e) {
+      console.warn('localStorage.clear() failed during factoryReset', e);
+    }
+
+    // Clear all relevant DB tables
+    await Promise.all([
+      db.sales.clear(),
+      db.transfers.clear(),
+      db.operations.clear(),
+      db.accounting_entries.clear(),
+      db.tiers.clear(),
+      db.suppliers.clear(),
+      db.taxed_transactions.clear(),
+      db.products.clear(),
+      db.tax_config.clear(),
+      db.balances.clear(),
+      db.service_configs.clear(),
+      db.shareholders.clear(),
+    ]);
+
+    // Re-seed minimal chart accounts and default settings so the app can boot sensibly
+    try {
+      await db.accounts.clear();
+      await ensureDefaultChart();
+      // reset settings table with defaults
+      await db.settings.clear();
+      await db.settings.add(getSettings());
+    } catch (e) {
+      console.warn('Re-seed after factoryReset failed', e);
+    }
+
+    // Notify UI to refresh
+    try {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('ledger-updated'));
+        window.dispatchEvent(new CustomEvent('financials-updated'));
+      }
+    } catch (e) { console.debug('dispatch after factoryReset failed', e); }
+  } catch (err) {
+    console.error('Erreur factoryReset:', err);
+    throw err;
+  }
+};
+
 const selectedProductDefaultFee = (productRecord?: Product | undefined): number => {
   try {
     if (!productRecord) return 0;
@@ -2852,6 +2924,40 @@ export const updateBalanceWithEntry = async (opts: {
   } catch (error) {
     console.error('[updateBalanceWithEntry] Error:', error);
     throw error;
+  }
+};
+
+// Create an accounting entry to zero a balance (cash or digital) for a given transfer type.
+export const resetBalanceWithEntry = async (opts: { transferType: TransferType; customServiceName?: string; balanceType: 'cash' | 'digital'; reason?: string }): Promise<void> => {
+  const { transferType, customServiceName, balanceType, reason } = opts;
+  try {
+    // compute current balance
+    const computed = await getTypeBalanceFromAccounting(transferType, customServiceName);
+    const amount = balanceType === 'cash' ? computed.cash_balance : computed.digital_balance;
+    const rounded = Math.round((amount || 0) * 100) / 100;
+    if (!rounded || rounded === 0) {
+      console.log('[resetBalanceWithEntry] Balance already zero, nothing to do');
+      return;
+    }
+
+    const today = new Date().toISOString().slice(0,10);
+    // debit adjustment to capital (101) and credit the cash/digital account to reduce asset to zero
+    const debitAccount = '101';
+    const debitAccountName = 'Capital social / Ajustement ouverture';
+    const creditAccount = balanceType === 'cash' ? '5311' : '517';
+    const creditAccountName = balanceType === 'cash' ? 'Caisse Centrale' : 'Argent Numérique';
+
+    const entries = [
+      { journal_date: today, transaction_type: 'ajustement_ouverture', account_code: debitAccount, account_name: debitAccountName, debit: rounded, credit: 0, description: reason || `Ajustement ouverture pour remettre ${creditAccount} à zéro (${transferType})` },
+      { journal_date: today, transaction_type: 'ajustement_ouverture', account_code: creditAccount, account_name: creditAccountName, debit: 0, credit: rounded, description: reason || `Remise à zéro solde ${creditAccount} pour ${transferType}` }
+    ];
+
+    await createAccountingTransaction(entries);
+    try { if (typeof window !== 'undefined') { window.dispatchEvent(new CustomEvent('ledger-updated')); window.dispatchEvent(new CustomEvent('financials-updated')); } } catch(e){}
+    console.log(`[resetBalanceWithEntry] Created adjustment entries for ${balanceType}=${rounded}`);
+  } catch (err) {
+    console.error('[resetBalanceWithEntry] Error:', err);
+    throw err;
   }
 };
 

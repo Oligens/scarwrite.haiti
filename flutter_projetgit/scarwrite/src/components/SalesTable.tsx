@@ -7,7 +7,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Trash2, Printer } from "@/lib/lucide-react";
+import { Trash, Printer } from "@/lib/lucide-react";
 import { generateClientReceiptFromSale } from '@/lib/pdf';
 import { downloadPDF } from '@/lib/pdf';
 import { useToast } from "@/hooks/use-toast";
@@ -82,7 +82,7 @@ export function SalesTable({ sales, onUpdate }: SalesTableProps) {
                 onClick={() => handleDelete(sale.id)}
                 className="h-8 w-8 text-muted-foreground hover:text-destructive"
               >
-                <Trash2 className="h-4 w-4" />
+                <Trash className="h-4 w-4" />
               </Button>
             </TableCell>
           </TableRow>

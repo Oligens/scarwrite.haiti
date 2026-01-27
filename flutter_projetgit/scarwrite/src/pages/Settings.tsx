@@ -26,6 +26,7 @@ import {
   getCompanyProfile,
   saveCompanyProfile,
   clearAllTransactions,
+  factoryReset,
   CompanyType,
   getShareholders,
   saveShareholders,
@@ -249,6 +250,17 @@ export default function Settings() {
               />
             </div>
             <div className="space-y-2">
+              <Label className="text-card-foreground">Impôt sur le Revenu (%)</Label>
+              <Input
+                type="number"
+                value={(settings.income_tax_rate ?? 0)}
+                onChange={(e) => setSettings({ ...settings, income_tax_rate: Number(e.target.value) })}
+                placeholder="30"
+                className="bg-muted border-border"
+              />
+              <p className="text-xs text-muted-foreground">Taux appliqué sur le Résultat Avant Impôt pour calculer la provision ISR.</p>
+            </div>
+            <div className="space-y-2">
               <Label className="text-card-foreground">Activer Maison de Transfert</Label>
               <div className="flex items-center gap-3">
                 <input
@@ -428,13 +440,13 @@ export default function Settings() {
                 <AlertDialogAction
                   onClick={async () => {
                     try {
-                      await clearAllTransactions();
-                      // redirect to dashboard and notify
-                      navigate('/dashboard');
-                      toast({ title: 'Toutes les opérations ont été supprimées' });
+                      await factoryReset();
+                      toast({ title: 'Réinitialisation complète effectuée' });
+                      // Force full reload so app restarts on a clean state
+                      try { window.location.reload(); } catch (e) { navigate('/dashboard'); }
                     } catch (err) {
-                      console.error('Reset failed', err);
-                      toast({ title: 'Erreur', description: 'Impossible de réinitialiser', variant: 'destructive' });
+                      console.error('Factory reset failed', err);
+                      toast({ title: 'Erreur', description: 'Impossible de réinitialiser l\'application', variant: 'destructive' });
                     }
                   }}
                 >

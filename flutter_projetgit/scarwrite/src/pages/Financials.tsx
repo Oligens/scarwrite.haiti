@@ -273,6 +273,12 @@ export default function Financials({ onClose }: { onClose?: () => void }) {
                   <div className="p-4 text-black">
                     <h4 className="font-semibold">PASSIF + CAPITAUX PROPRES</h4>
                     <div className="mt-2 font-mono">Total Passifs: {bal?.liabilities ?? 0}</div>
+                    {typeof bal?.provision444 !== 'undefined' && (
+                      <div className="mt-2 font-mono">Provision Impôts (444): {bal.provision444}</div>
+                    )}
+                    {typeof bal?.liabilitiesWithProvision !== 'undefined' && (
+                      <div className="mt-2 font-mono">Total Passifs (avec provision): {bal.liabilitiesWithProvision}</div>
+                    )}
                     <div className="mt-2 font-mono">Fournisseurs (401): {bal?.passif401 ?? 0}</div>
                     <div className="mt-2 font-mono">Capital social (101): {bal?.apports ?? 0}</div>
                     <div className="mt-2 font-mono">Résultat Net / BNR: {bal?.resultNet ?? bal?.bnr ?? 0}</div>
