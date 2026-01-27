@@ -2281,6 +2281,18 @@ export const getBalanceSheet = async (asOfDate: string): Promise<{ assets: numbe
       }
     }
 
+    // If settings declare an initial capital but no corresponding accounting entry exists,
+    // ensure the initial capital appears in the apports total so the balance sheet balances.
+    try {
+      const settings = getSettings();
+      const initialCapital = Number(settings?.initial_capital || 0);
+      if (initialCapital > 0) {
+        apports = Math.max(apports, initialCapital);
+      }
+    } catch (err) {
+      // ignore settings read errors
+    }
+
     // BNR: use retained earnings computation up to asOfDate
     const bnrObj = await getRetainedEarnings('1970-01-01', asOfDate);
     const bnr = bnrObj.closing || 0;

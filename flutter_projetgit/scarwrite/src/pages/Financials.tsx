@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
+// Removed Radix tooltips to avoid runtime issues inside charts/UI
 import { HelpCircle } from '@/lib/lucide-react';
 import { getDynamicProfitAndLoss, getRetainedEarnings, getBalanceSheet, createAccountingTransaction, addFixedAsset, calculateTaxesFromAccounting } from '@/lib/storage';
 import { payDividends, transferUndistributedToBNR } from '@/lib/storage';
@@ -203,24 +203,14 @@ export default function Financials({ onClose }: { onClose?: () => void }) {
                         </tr>
                         <tr>
                           <td className="py-2 flex items-center gap-2">Taxes collectées (TCA)
-                            <Tooltip>
-                              <TooltipTrigger>
-                                <span className="inline-flex items-center"><HelpCircle className="w-4 h-4 text-muted-foreground"/></span>
-                              </TooltipTrigger>
-                              <TooltipContent side="top">Les TCA sont extraites du module Fiscalité (registre des taxes collectées sur ventes).</TooltipContent>
-                            </Tooltip>
+                            <span title="Les TCA sont extraites du module Fiscalité (registre des taxes collectées sur ventes)." className="inline-flex items-center"><HelpCircle className="w-4 h-4 text-muted-foreground"/></span>
                           </td>
                           <td className="py-2 text-right font-mono text-black">{(pl?.taxes ?? 0).toFixed(2)}</td>
                           <td className="py-2 text-right font-mono text-black">{pl?.totalRevenues ? ((pl.taxes / pl.totalRevenues) * 100).toFixed(1) + '%' : '—'}</td>
                         </tr>
                         <tr>
                           <td className="py-2 flex items-center gap-2">Impôt sur le résultat
-                            <Tooltip>
-                              <TooltipTrigger>
-                                <span className="inline-flex items-center"><HelpCircle className="w-4 h-4 text-muted-foreground"/></span>
-                              </TooltipTrigger>
-                              <TooltipContent side="top">Impôt simulé calculé automatiquement (taux utilisé: 30% par défaut).</TooltipContent>
-                            </Tooltip>
+                            <span title="Impôt simulé calculé automatiquement (taux utilisé: 30% par défaut)." className="inline-flex items-center"><HelpCircle className="w-4 h-4 text-muted-foreground"/></span>
                           </td>
                           <td className="py-2 text-right font-mono text-black">{(pl?.incomeTax ?? 0).toFixed(2)}</td>
                           <td className="py-2 text-right font-mono text-black">{pl?.totalRevenues ? ((pl.incomeTax / pl.totalRevenues) * 100).toFixed(1) + '%' : '—'}</td>
@@ -284,6 +274,8 @@ export default function Financials({ onClose }: { onClose?: () => void }) {
                     <h4 className="font-semibold">PASSIF + CAPITAUX PROPRES</h4>
                     <div className="mt-2 font-mono">Total Passifs: {bal?.liabilities ?? 0}</div>
                     <div className="mt-2 font-mono">Fournisseurs (401): {bal?.passif401 ?? 0}</div>
+                    <div className="mt-2 font-mono">Capital social (101): {bal?.apports ?? 0}</div>
+                    <div className="mt-2 font-mono">Résultat Net / BNR: {bal?.resultNet ?? bal?.bnr ?? 0}</div>
                     <div className="mt-2 font-mono">Total Capitaux: {bal?.equity ?? 0}</div>
                     <div className="mt-3 text-sm font-mono">Identité comptable: <span className="font-semibold">{bal?.balanced ? 'OK' : 'NON'}</span> (écart: {bal?.discrepancy ?? 0})</div>
                   </div>

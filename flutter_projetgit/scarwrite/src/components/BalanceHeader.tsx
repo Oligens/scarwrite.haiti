@@ -34,6 +34,9 @@ export function BalanceHeader({ transferType, customTypeName, onBalanceChange, r
 
   // NEW: Reapprovisionning dialog state
   const [showReapprovisionDialog, setShowReapprovisionDialog] = useState(false);
+  // Delete confirmation dialog state
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<'cash' | 'digital' | null>(null);
   const [reapprovisionType, setReapprovisionType] = useState<'cash' | 'digital'>('cash');
   const [reapprovisionAmount, setReapprovisionAmount] = useState('');
   const [reapprovisionSource, setReapprovisionSource] = useState<'apport' | 'virement'>('apport');
@@ -202,14 +205,7 @@ export function BalanceHeader({ transferType, customTypeName, onBalanceChange, r
                   >
                     <PlusCircle className="h-5 w-5" />
                   </Button>
-                  <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => {
-                    if (!confirm('Êtes-vous sûr de vouloir supprimer ce compte ? Cette action est irréversible.')) return;
-                    // Zero out balances as a soft-delete
-                    const newB = updateTypeBalance(transferType, customTypeName, { digital_balance: 0 });
-                    setBalance(prev => ({ ...prev, digital_balance: newB.digital_balance }));
-                    toast({ description: 'Compte numérique réinitialisé.' });
-                    onBalanceChange?.();
-                  }}>
+                  <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => { setDeleteTarget('digital'); setShowDeleteDialog(true); }}>
                     <Trash2 className="h-3 w-3 text-destructive" />
                   </Button>
                 </div>
@@ -254,13 +250,7 @@ export function BalanceHeader({ transferType, customTypeName, onBalanceChange, r
                   >
                     <PlusCircle className="h-5 w-5" />
                   </Button>
-                  <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => {
-                    if (!confirm('Êtes-vous sûr de vouloir supprimer ce compte ? Cette action est irréversible.')) return;
-                    const newB = updateTypeBalance(transferType, customTypeName, { cash_balance: 0 });
-                    setBalance(prev => ({ ...prev, cash_balance: newB.cash_balance }));
-                    toast({ description: 'Compte cash réinitialisé.' });
-                    onBalanceChange?.();
-                  }}>
+                  <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => { setDeleteTarget('cash'); setShowDeleteDialog(true); }}>
                     <Trash2 className="h-3 w-3 text-destructive" />
                   </Button>
                 </div>
@@ -330,6 +320,37 @@ export function BalanceHeader({ transferType, customTypeName, onBalanceChange, r
             >
               {isSubmittingReapprovision ? 'Enregistrement...' : 'Ajouter les fonds'}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* Delete confirmation dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={(open) => { if (!open) { setDeleteTarget(null); } setShowDeleteDialog(open); }}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle>Confirmer la suppression</DialogTitle>
+          </DialogHeader>
+          <div className="py-2">
+            <p className="text-sm">Vous vous apprêtez à réinitialiser le solde de ce compte. Cette action mettra le solde à zéro mais conservera l'historique comptable. Confirmez-vous ?</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>Annuler</Button>
+            <Button className="bg-rose-600 text-white" onClick={() => {
+              (async () => {
+                try {
+                  if (!deleteTarget) return;
+                  const update = deleteTarget === 'cash' ? { cash_balance: 0 } : { digital_balance: 0 };
+                  const newB = updateTypeBalance(transferType, customTypeName, update);
+                  setBalance(prev => ({ ...prev, ...newB }));
+                  toast({ description: `Compte ${deleteTarget === 'cash' ? 'cash' : 'numérique'} réinitialisé.` });
+                  setShowDeleteDialog(false);
+                  setDeleteTarget(null);
+                  onBalanceChange?.();
+                } catch (err) {
+                  console.error('Erreur suppression solde:', err);
+                  toast({ description: 'Erreur lors de la réinitialisation', variant: 'destructive' });
+                }
+              })();
+            }}>Réinitialiser</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

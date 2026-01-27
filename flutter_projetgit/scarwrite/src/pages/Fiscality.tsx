@@ -51,32 +51,53 @@ export default function Fiscality() {
     // Build a summary from currently filtered transactions (on-screen state)
     const breakdown: Record<string, number> = {};
     let totalTaxes = 0;
-    transactions.forEach(t => {
-      const amt = Number(t.tax_amount || 0);
-      totalTaxes += amt;
-      breakdown[t.tax_name] = (breakdown[t.tax_name] || 0) + amt;
-    });
+
+    // Defensive coercion for year/month
+    const exportYear = Number(year);
+    const exportMonth = Number(month);
 
     // Ensure the PDF receives the active tax registry so the table can show Taux
     const taxes = await (await import('@/lib/storage')).getTaxConfigs();
 
-    const doc = generateTaxCertificateFromData(
-      year,
-      month,
-      transactions.map(t => ({
+    // Map rows exactly: [date, description, baseHT.toFixed(2), taux%, montant.toFixed(2)]
+    const mapped = transactions.map(t => {
+      const base = Number(t.base_amount || 0);
+      const taxAmt = Number(t.tax_amount || 0);
+      totalTaxes += taxAmt;
+      breakdown[t.tax_name] = (breakdown[t.tax_name] || 0) + taxAmt;
+
+      // Normalize rate: accept 0.18 or 18
+      let rawRate = Number(t.tax_percentage ?? 0);
+      if (!Number.isFinite(rawRate)) rawRate = 0;
+      const displayRate = rawRate > 0 && rawRate <= 1 ? rawRate * 100 : rawRate;
+
+      return {
         transaction_date: t.transaction_date,
         transaction_type: t.transaction_type,
         transaction_id: t.transaction_id,
-        base_amount: Number(t.base_amount || 0),
+        base_amount: base,
         tax_name: t.tax_name,
-        tax_percentage: Number(t.tax_percentage || 0),
-        tax_amount: Number(t.tax_amount || 0),
-      })),
+        tax_percentage: displayRate,
+        tax_amount: taxAmt,
+      };
+    });
+
+    if (!mapped.length) {
+      // eslint-disable-next-line no-console
+      console.error('Aucun enregistrement fiscal sélectionné — export annulé');
+      alert('Aucune transaction fiscale affichée pour la période sélectionnée. Vérifiez les filtres avant d\'exporter.');
+      return;
+    }
+
+    const doc = generateTaxCertificateFromData(
+      exportYear,
+      exportMonth,
+      mapped,
       { totalTaxes, breakdown },
       { taxConfigs: taxes }
     );
 
-    downloadPDF(doc, `certificat-fiscal-${year}-${String(month).padStart(2, '0')}.pdf`);
+    downloadPDF(doc, `certificat-fiscal-${exportYear}-${String(exportMonth).padStart(2, '0')}.pdf`);
   };
 
   const formatCurrency = (amount: number): string => {
@@ -114,12 +135,12 @@ export default function Fiscality() {
             <div className="flex-1">
               <label className="block text-sm font-medium mb-2 text-white">Mois</label>
               <select 
-                value={month} 
-                onChange={(e) => setMonth(e.target.value)}
+                value={String(month).padStart(2,'0')} 
+                onChange={(e) => setMonth(Number(e.target.value))}
                 className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground"
               >
                 {Array.from({length: 12}, (_, i) => i + 1).map(m => (
-                  <option key={m} value={String(m).padStart(2, '0')}>
+                  <option key={m} value={m}>
                     {new Date(2024, m-1).toLocaleString('fr-FR', {month: 'long'})}
                   </option>
                 ))}
@@ -129,11 +150,11 @@ export default function Fiscality() {
               <label className="block text-sm font-medium mb-2 text-white">Année</label>
               <select 
                 value={year} 
-                onChange={(e) => setYear(e.target.value)}
+                onChange={(e) => setYear(Number(e.target.value))}
                 className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground"
               >
                 {Array.from({length: 5}, (_, i) => new Date().getFullYear() - i).map(y => (
-                  <option key={y} value={String(y)}>
+                  <option key={y} value={y}>
                     {y}
                   </option>
                 ))}

@@ -380,27 +380,82 @@ export const generateTaxCertificateFromData = (
   }
 
   // Détail ligne par ligne (Date | Transaction | Base HT | Taxe | Montant taxe)
-  doc.setFont('helvetica', 'bold');
-  doc.text('Registre des Taxes (Date | Transaction | Base HT | Taxe | Montant taxe)', 14, y);
-  y += 6;
-  doc.setFont('helvetica', 'normal');
+  // Build an explicit table matching the exact column order requested by the user:
+  // [Date, Libellé (Transaction), Base HT, Taux, Montant]
+  if (!transactions || transactions.length === 0) {
+    // Log clearly when PDF generation is called with no tax rows
+    // so callers can debug missing filtered data.
+    // eslint-disable-next-line no-console
+    console.error('generateTaxCertificateFromData called without transactions: no tax rows provided');
+  }
 
-  transactions.forEach((t) => {
-    if (y > 270) {
-      doc.addPage();
-      y = 20;
+  // Normalize rate for display: if stored as a fraction (e.g. 0.1) multiply by 100.
+  const normalizeRate = (raw: unknown, name?: string) => {
+    const explicit = typeof raw === 'number' || (typeof raw === 'string' && raw.trim() !== '') ? Number(raw) : NaN;
+    if (!Number.isNaN(explicit) && Number.isFinite(explicit)) {
+      return explicit <= 1 ? explicit * 100 : explicit;
     }
-    const date = new Date(t.transaction_date).toLocaleDateString('fr-FR');
-    const tx = `${date} | ${t.transaction_type}/${t.transaction_id}`;
-    doc.text(tx, 14, y);
-    writeBoldAmount(doc, 100, y, t.base_amount, currency, { align: 'right' });
-    const taxPct = (t.tax_percentage != null && !Number.isNaN(Number(t.tax_percentage)) && Number(t.tax_percentage) > 0)
-      ? Number(t.tax_percentage)
-      : (opts?.taxConfigs?.find(tc => tc.name === t.tax_name)?.percentage ?? 0);
-    doc.text(`${t.tax_name} (${taxPct}%)`, 130, y);
-    writeBoldAmount(doc, 180, y, t.tax_amount, currency, { align: 'right' });
-    y += 6;
+    // fallback to taxConfigs if provided
+    const fromCfg = opts?.taxConfigs?.find((tc) => tc.name === name || tc.name === String(name));
+    if (fromCfg) return (fromCfg.percentage || 0);
+    return 0;
+  };
+
+  const tableBody = (transactions || []).map((t) => {
+    const dateStr = t.transaction_date ? new Date(t.transaction_date).toLocaleDateString('fr-FR') : '';
+    const description = `${t.transaction_type || ''}/${t.transaction_id || ''}`;
+    const base = Number(t.base_amount ?? 0);
+    const rate = normalizeRate(t.tax_percentage, t.tax_name);
+    const amount = Number(t.tax_amount ?? 0);
+    return [
+      dateStr,
+      description,
+      base.toFixed(2),
+      `${rate}%`,
+      amount.toFixed(2),
+    ];
   });
+
+  // Use autoTable for consistent table layout in PDFs
+  try {
+    autoTable(doc, {
+      startY: y,
+      head: [['Date', 'Libellé', 'Base HT', 'Taux', 'Montant']],
+      body: tableBody,
+      theme: 'grid',
+      styles: {
+        fontSize: 9,
+        cellPadding: 3,
+        textColor: [0, 0, 0] as [number, number, number],
+        fontStyle: 'normal',
+      },
+      headStyles: {
+        fillColor: [45, 45, 48] as [number, number, number],
+        textColor: [255, 255, 255] as [number, number, number],
+        fontStyle: 'bold' as const,
+      },
+      bodyStyles: {
+        textColor: [0, 0, 0] as [number, number, number],
+      },
+      alternateRowStyles: {
+        fillColor: [250, 250, 250] as [number, number, number],
+      },
+    });
+  } catch (err) {
+    // If autoTable fails for any reason, fall back to simple text rows (best-effort)
+    // eslint-disable-next-line no-console
+    console.error('autotable failed while generating tax registry table', err);
+    let yy = y;
+    tableBody.forEach((r) => {
+      if (yy > 270) { doc.addPage(); yy = 20; }
+      doc.text(String(r[0] || ''), 14, yy);
+      doc.text(String(r[1] || ''), 60, yy);
+      doc.text(String(r[2] || ''), 120, yy, { align: 'right' });
+      doc.text(String(r[3] || ''), 150, yy);
+      doc.text(String(r[4] || ''), 190, yy, { align: 'right' });
+      yy += 6;
+    });
+  }
 
   // Footer / signature
   doc.setFontSize(9);
