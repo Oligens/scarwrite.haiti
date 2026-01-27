@@ -18,13 +18,13 @@ export default defineConfig(({ mode }) => ({
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg}"],
       },
-      includeAssets: ["favicon.svg", "apple-touch-icon.png", "masked-icon.svg"],
+      includeAssets: ["scarwrite.png", "pwa-192x192.png", "pwa-512x512.png"],
       manifest: {
         name: "ScarWrite - Gestion Financière Premium",
         short_name: "ScarWrite",
         description: "Application de gestion financière premium pour entreprises internationales",
-        theme_color: "#1e293b",
-        background_color: "#0f172a",
+        theme_color: "#000000",
+        background_color: "#000000",
         display: "standalone",
         icons: [
           {

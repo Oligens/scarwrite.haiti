@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 // Manual transaction form removed — accounting entries are generated automatically by operations
 import { getTrialBalance, getJournalEntriesByDate } from "@/lib/storage";
+import Financials from './Financials';
 import type { AccountingEntry } from "@/lib/database";
 
 interface TrialBalanceEntry {
@@ -16,6 +17,7 @@ export default function Accounting(): JSX.Element {
   const [trial, setTrial] = useState<TrialBalanceEntry[]>([]);
   const [journal, setJournal] = useState<AccountingEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showFinancials, setShowFinancials] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -36,6 +38,12 @@ export default function Accounting(): JSX.Element {
     };
 
     loadData();
+
+    const openHandler = () => setShowFinancials(true);
+    const closeHandler = () => setShowFinancials(false);
+    window.addEventListener('open-financials', openHandler as any);
+    window.addEventListener('close-financials', closeHandler as any);
+    return () => { window.removeEventListener('open-financials', openHandler as any); window.removeEventListener('close-financials', closeHandler as any); };
   }, []);
 
   if (loading) {
@@ -53,7 +61,10 @@ export default function Accounting(): JSX.Element {
       <div className="p-6">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl font-bold">Comptabilité</h1>
-          {/* Manual transaction entry removed — use app flows to record transactions */}
+          {/* Button to open full-screen Financials view */}
+          <div>
+            <button onClick={() => window.dispatchEvent(new CustomEvent('open-financials'))} className="ml-4 bg-yellow-500 text-black font-semibold px-3 py-2 rounded">📦 États Financiers</button>
+          </div>
         </div>
 
         <div className="space-y-8">
@@ -166,45 +177,12 @@ export default function Accounting(): JSX.Element {
             </div>
           </div>
 
-          {/* Section 4: États Financiers */}
-          <div className="border-l-4 border-amber-600 pl-4">
-            <h2 className="font-display text-2xl font-bold text-slate-900 mb-1">
-              4. États Financiers
-            </h2>
-            <p className="text-sm text-muted-foreground mb-4">
-              États financiers complets : Bilan détaillé, Compte de Résultat (P&L), Bénéfices Non Répartis (BNR) et Flux de Trésorerie.
-            </p>
-            <div className="mt-3 bg-slate-50 rounded-lg p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-6">
-                <div className="border-l-2 border-amber-500 pl-4">
-                  <p className="text-sm text-muted-foreground">Total Actifs</p>
-                  <p className="font-display text-2xl font-bold text-slate-900 font-mono">
-                    {(trial.reduce((s, r) => s + (r.debit||0), 0)).toFixed(2)}
-                  </p>
-                </div>
-                <div className="border-l-2 border-amber-500 pl-4">
-                  <p className="text-sm text-muted-foreground">Total Passifs</p>
-                  <p className="font-display text-2xl font-bold text-slate-900 font-mono">
-                    {(trial.reduce((s, r) => s + (r.credit||0), 0)).toFixed(2)}
-                  </p>
-                </div>
-              </div>
-              <div className="border-t-2 border-slate-300 pt-4">
-                <p className="text-sm text-muted-foreground">Équilibre (Débit - Crédit)</p>
-                <p className={`font-display text-xl font-bold font-mono ${
-                  Math.abs(trial.reduce((s, r) => s + (r.debit||0), 0) - trial.reduce((s, r) => s + (r.credit||0), 0)) < 0.01
-                    ? 'text-green-600'
-                    : 'text-red-600'
-                }`}>
-                  {(trial.reduce((s, r) => s + (r.debit||0), 0) - trial.reduce((s, r) => s + (r.credit||0), 0)).toFixed(2)}
-                </p>
-              </div>
-            </div>
-          </div>
+          {/* Section 4 removed — moved to dedicated Financials view */}
         </div>
 
         {/* Manual transaction dialog removed to prevent manual journal entries. All transactions are recorded automatically. */}
       </div>
+      {showFinancials && <Financials onClose={() => setShowFinancials(false)} />}
     </AppLayout>
   );
 }

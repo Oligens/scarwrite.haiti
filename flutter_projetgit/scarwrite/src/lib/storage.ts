@@ -405,6 +405,71 @@ export const deleteProduct = async (id: string): Promise<void> => {
   }
 };
 
+// Add a fixed asset (immobilisation) record and optionally create the initial accounting entry
+export const addFixedAsset = async (name: string, purchasePrice: number, purchaseDate: string, lifeMonths: number, paidFromAccountCode: string | null = '5311') : Promise<void> => {
+  const now = new Date().toISOString();
+  const asset: Product = {
+    id: crypto.randomUUID(),
+    name,
+    unit_price: 0,
+    cost_price: purchasePrice,
+    quantity_available: 0,
+    is_active: true,
+    is_service: false,
+    is_asset: true,
+    purchase_price: purchasePrice,
+    purchase_date: purchaseDate,
+    life_months: lifeMonths,
+    accumulated_amortization: 0,
+    last_amortization_date: null as unknown as string,
+    created_at: now,
+    updated_at: now,
+    entity_type: getActiveEntity(),
+  };
+
+  try {
+    // Prevent duplicate asset (same name + purchase date + entity)
+    const active = getActiveEntity();
+    const exists = await db.products.filter(p => (p as any).is_asset === true && p.name === name && p.purchase_date === purchaseDate && (p as any).entity_type === active).first();
+    if (exists) {
+      // Do not add duplicate; ensure an initial purchase transaction exists but do not duplicate records
+      console.warn('Asset already exists, skipping duplicate add:', name, purchaseDate);
+      return;
+    }
+
+    await db.products.add(asset);
+
+    // Create initial accounting transaction: Debit Asset account (215 Matériel) Credit Cash/Bank
+    const journalDate = purchaseDate;
+    const entries = [
+      { journal_date: journalDate, transaction_type: 'asset_purchase', account_code: '215', account_name: name, debit: purchasePrice, credit: 0, description: `Achat immobilisation: ${name}` },
+      { journal_date: journalDate, transaction_type: 'asset_purchase', account_code: paidFromAccountCode || '5311', account_name: paidFromAccountCode ? paidFromAccountCode : 'Caisse', debit: 0, credit: purchasePrice, description: `Paiement achat immobilisation: ${name}` },
+    ];
+    await createAccountingTransaction(entries as any);
+    try { if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('financials-updated')); } catch (e) {}
+  } catch (err) {
+    console.error('Erreur ajout immobilisation:', err);
+    throw err;
+  }
+};
+
+// Compute days between two ISO dates (toIso - fromIso)
+const daysBetween = (fromIso: string, toIso: string): number => {
+  try {
+    const f = new Date(fromIso);
+    const t = new Date(toIso);
+    const msPerDay = 1000 * 60 * 60 * 24;
+    return Math.max(0, Math.floor((t.getTime() - f.getTime()) / msPerDay));
+  } catch (e) { return 0; }
+};
+
+// NOTE: Amortizations are simulated in views and not persisted as journal lines.
+// This function is retained for compatibility but performs no writes to the journal.
+export const applyAmortizationsUpTo = async (upToDate: string): Promise<void> => {
+  console.warn('applyAmortizationsUpTo is a no-op: amortizations are simulated in reports and not written to the Journal.');
+  return Promise.resolve();
+};
+
 // Sales
 export const getSales = async (): Promise<Sale[]> => {
   try {
@@ -2027,7 +2092,57 @@ export const getDynamicProfitAndLoss = async (startDate: string, endDate: string
     }
 
     const totalRevenues = Math.round((revenuesProducts + revenuesServices + feesAndCommissions) * 100) / 100;
-    const netBeforeTaxes = Math.round((totalRevenues - expenses) * 100) / 100;
+    // Compute amortization for assets up to endDate (simulated, not persisted) using days-based formula
+    const assets: Product[] = await db.products.filter(p => (p as any).is_asset === true).toArray();
+    let amortizationTotal = 0;
+    for (const a of assets) {
+      const purchase = a.purchase_price || 0;
+      const lifeMonths = a.life_months || 0;
+      if (!a.purchase_date || !purchase || !lifeMonths) continue;
+      const lifeDays = Math.max(1, Math.round((lifeMonths / 12) * 365));
+      const daysElapsed = daysBetween(a.purchase_date, endDate + 'T23:59:59');
+      const daysToCharge = Math.min(daysElapsed, lifeDays);
+      const dailyAmount = (purchase / lifeDays);
+      const amortForAsset = Math.round(dailyAmount * daysToCharge * 100) / 100;
+      amortizationTotal += Math.min(amortForAsset, purchase);
+    }
+
+    // Add amortization to expenses but do not persist amortization entries
+    const expensesWithAmort = expenses + amortizationTotal;
+
+    // Compute CMV (Coût des Marchandises Vendues)
+    // Prefer scanning Journal entries marked as 'COGS' or 'Déstockage' in description
+    let cmvFromJournal = 0;
+    try {
+      entries.forEach(e => {
+        const desc = (e.description || '').toString().toLowerCase();
+        if (desc.includes('cogs') || desc.includes('déstock') || desc.includes('destock') || desc.includes('déstockage')) {
+          // Sum the debit side of COGS entries (expense side)
+          cmvFromJournal += (e.debit || 0);
+        }
+      });
+    } catch (e) { console.warn('Erreur scan journal pour CMV:', e); }
+
+    // Fallback: compute CMV from sales * product cost_price when journal markers are not present
+    let cmvFromSales = 0;
+    try {
+      const salesRows: Sale[] = await db.sales.filter(s => s.sale_date >= startDate && s.sale_date <= endDate).toArray();
+      if (salesRows.length > 0) {
+        const productIds = Array.from(new Set(salesRows.map(s => s.product_id).filter(Boolean)));
+        const prods = await db.products.bulkGet(productIds as any);
+        const prodMap: Record<string, Product | undefined> = {};
+        for (const p of prods) if (p) prodMap[p.id] = p;
+        for (const s of salesRows) {
+          const prod = prodMap[s.product_id as string];
+          const cost = prod ? (prod.cost_price || prod.purchase_price || 0) : 0;
+          cmvFromSales += Math.round((cost * (s.quantity || 0)) * 100) / 100;
+        }
+      }
+    } catch (e) { console.warn('Erreur calcul CMV par ventes:', e); }
+
+    const cmvTotal = Math.round(((cmvFromJournal || cmvFromSales) || 0) * 100) / 100;
+
+    const netBeforeTaxes = Math.round((totalRevenues - expensesWithAmort - cmvTotal) * 100) / 100;
     const netAfterTaxes = Math.round((netBeforeTaxes - taxes) * 100) / 100;
 
     // 3) Shareholder allocation (for SA/SARL-like companies) based on settings/shareholders
@@ -2053,7 +2168,9 @@ export const getDynamicProfitAndLoss = async (startDate: string, endDate: string
       revenuesServices: Math.round(revenuesServices * 100) / 100,
       feesAndCommissions: Math.round(feesAndCommissions * 100) / 100,
       totalRevenues,
-      expenses: Math.round(expenses * 100) / 100,
+      expenses: Math.round(expensesWithAmort * 100) / 100,
+      amortization: Math.round(amortizationTotal * 100) / 100,
+      cmv: Math.round((cmvTotal || 0) * 100) / 100,
       taxes: Math.round(taxes * 100) / 100,
       netBeforeTaxes,
       netAfterTaxes,
@@ -2081,21 +2198,102 @@ export const getBalanceSheet = async (asOfDate: string): Promise<{ assets: numbe
       map[code] += (debit - credit);
     }
 
-    // Classify codes roughly: assets start with 1 or specific (53 cash,5120 bank,31 stocks), liabilities start with 4 or tax payable 4457, equity start with 10/101 etc.
+    // Classify account balances into assets, liabilities, equity (positive values)
     let assets = 0; let liabilities = 0; let equity = 0;
     const breakdown: Record<string, number> = {};
     for (const [code, balance] of Object.entries(map)) {
       breakdown[code] = Math.round(balance * 100) / 100;
-      if (/^1/.test(code) || ['5311','5120','31','7010'].includes(code)) {
-        assets += balance;
+      // Asset accounts: debit balances
+      if (/^1/.test(code) || ['5311','5120','31','7010','311','312','313'].includes(code)) {
+        assets += Math.max(0, balance);
       } else if (/^4/.test(code) || ['4457','4010','4110'].includes(code)) {
-        liabilities += -balance; // liabilities are credits
+        // Liability accounts: credits (negative net in debit-credit), take positive
+        liabilities += Math.max(0, -balance);
       } else {
-        equity += balance;
+        // Treat other accounts (capital, reserves) as equity-like (credit balances)
+        equity += Math.max(0, -balance);
       }
     }
 
-    return { assets: Math.round(assets * 100) / 100, liabilities: Math.round(liabilities * 100) / 100, equity: Math.round(equity * 100) / 100, breakdown };
+    // Compute assets from product immobilisations and amortization (days-based)
+    const assetsList: Product[] = await db.products.filter(p => (p as any).is_asset === true).toArray();
+    let amortizationTotal = 0;
+    let assetsGross = 0;
+    const assetsItems: Array<{ name: string; gross: number; amort: number; net: number }> = [];
+    for (const a of assetsList) {
+      const purchase = a.purchase_price || 0;
+      assetsGross += purchase;
+      let amort = 0;
+      if (a.purchase_date && a.life_months && purchase > 0) {
+        const lifeMonths = a.life_months || 0;
+        const lifeDays = Math.max(1, Math.round((lifeMonths / 12) * 365));
+        const daysElapsed = daysBetween(a.purchase_date, asOfDate);
+        const daysToCharge = Math.min(daysElapsed, lifeDays);
+        const daily = (purchase / lifeDays);
+        amort = Math.round(Math.min(purchase, daily * daysToCharge) * 100) / 100;
+      }
+      amortizationTotal += amort;
+      assetsItems.push({ name: a.name, gross: Math.round(purchase * 100) / 100, amort, net: Math.round((purchase - amort) * 100) / 100 });
+    }
+
+    // Combine journal asset balances and product net book values
+    const assetsNetFromProducts = Math.round((assetsGross - amortizationTotal) * 100) / 100;
+    const finalAssets = Math.round((Math.max(0, assets) + assetsNetFromProducts) * 100) / 100;
+    const finalLiabilities = Math.round(liabilities * 100) / 100;
+
+    // Explicitly extract Passif from Fournisseurs (401*) as credits - debits
+    let passif401 = 0;
+    for (const [code, balance] of Object.entries(map)) {
+      if (/^401/.test(code)) {
+        passif401 += Math.max(0, -balance);
+      }
+    }
+
+    // Ensure passif401 contributes to overall liabilities (avoid double counting if already included)
+    // If passif401 is greater than current recorded liabilities for 4xx, add the difference
+    // (Most of the time it's already included via the liabilities loop above)
+    // We'll keep liabilities as aggregated but ensure passif401 is visible in breakdown
+
+    // Compute Capitaux Propres = Apports (capital accounts) + BNR (retained earnings) + Résultat Net (P&L)
+    let apports = 0;
+    for (const [code, balance] of Object.entries(map)) {
+      // Capital / apports typically on accounts starting with 10 (e.g., 101)
+      if (/^10/.test(code)) {
+        apports += Math.max(0, -balance);
+      }
+    }
+
+    // BNR: use retained earnings computation up to asOfDate
+    const bnrObj = await getRetainedEarnings('1970-01-01', asOfDate);
+    const bnr = bnrObj.closing || 0;
+
+    // Résultat Net: compute P&L for the current calendar year up to asOfDate
+    const asDate = new Date(asOfDate);
+    const yearStart = new Date(asDate.getFullYear(), 0, 1).toISOString().slice(0,10);
+    const resultPnl = await getDynamicProfitAndLoss(yearStart, asOfDate.slice(0,10));
+    const resultNet = Number.isFinite(resultPnl.netAfterTaxes) ? resultPnl.netAfterTaxes : 0;
+
+    const computedEquity = Math.round((apports + (bnr || 0) + resultNet) * 100) / 100;
+
+    // Validation: check accounting identity Actif = Passif + Capitaux
+    const discrepancy = Math.round((finalAssets - (finalLiabilities + computedEquity)) * 100) / 100;
+    const balanced = Math.abs(discrepancy) < 0.01;
+
+    return {
+      assets: finalAssets,
+      liabilities: finalLiabilities,
+      equity: computedEquity,
+      breakdown,
+      assetsGross: Math.round(assetsGross * 100) / 100,
+      assetsAmortization: Math.round(amortizationTotal * 100) / 100,
+      assetsItems,
+      passif401: Math.round(passif401 * 100) / 100,
+      apports: Math.round(apports * 100) / 100,
+      bnr: Math.round(bnr * 100) / 100,
+      resultNet: Math.round(resultNet * 100) / 100,
+      balanced,
+      discrepancy,
+    };
   } catch (err) {
     console.error('Erreur génération bilan:', err);
     return { assets: 0, liabilities: 0, equity: 0, breakdown: {} };

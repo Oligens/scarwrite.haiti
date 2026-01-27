@@ -4,7 +4,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft } from "@/lib/lucide-react";
-import { getAccounts, getTrialBalance, createAccountingTransaction, addAccount, getSettings, getJournalEntriesByDate, getCompanyProfile } from "@/lib/storage";
+import { getAccounts, getTrialBalance, createAccountingTransaction, addAccount, getSettings, getJournalEntriesByDate, getCompanyProfile, getDynamicProfitAndLoss, getRetainedEarnings, getBalanceSheet, addFixedAsset, applyAmortizationsUpTo } from "@/lib/storage";
 import type { Account, AccountingEntry } from "@/lib/database";
 import { downloadPDF } from "@/lib/pdf";
 import jsPDF from 'jspdf';
@@ -21,6 +21,80 @@ interface AccountLedger {
   totalCredit: number;
 }
 
+function NewChargeForm({ onSaved }: { onSaved?: () => Promise<void> | void }) {
+  const [type, setType] = useState<'charge' | 'asset'>('charge');
+  const [name, setName] = useState('');
+  const [amount, setAmount] = useState<number>(0);
+  const [purchaseDate, setPurchaseDate] = useState<string>(new Date().toISOString().slice(0,10));
+  const [lifeMonths, setLifeMonths] = useState<number>(12);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSave = async () => {
+    setIsSubmitting(true);
+    try {
+      if (type === 'charge') {
+        const today = new Date().toISOString().slice(0,10);
+        const entries = [
+          { journal_date: today, transaction_type: 'expense', account_code: '601', account_name: name, debit: amount, credit: 0, description: `Charge: ${name}` },
+          { journal_date: today, transaction_type: 'expense', account_code: '5311', account_name: 'Caisse', debit: 0, credit: amount, description: `Paiement charge: ${name}` },
+        ];
+        await createAccountingTransaction(entries as any);
+      } else {
+        // Asset
+        await addFixedAsset(name, amount, purchaseDate, lifeMonths, '5311');
+        await applyAmortizationsUpTo(new Date().toISOString().slice(0,10));
+      }
+      try { if (typeof window !== 'undefined') window.dispatchEvent(new Event('ledger-updated')); } catch (e) {}
+      if (onSaved) await onSaved();
+      alert('Enregistré');
+    } catch (err) {
+      console.error(err);
+      alert('Erreur enregistrement');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div>
+          <label className="block text-sm">Type</label>
+          <select value={type} onChange={(e) => setType(e.target.value as any)} className="w-full p-2 border rounded">
+            <option value="charge">Charge</option>
+            <option value="asset">Investissement (Immobilisation)</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm">Nom</label>
+          <input value={name} onChange={(e) => setName(e.target.value)} className="w-full p-2 border rounded" />
+        </div>
+        <div>
+          <label className="block text-sm">Montant</label>
+          <input type="number" value={amount} onChange={(e) => setAmount(Number(e.target.value))} className="w-full p-2 border rounded" />
+        </div>
+      </div>
+
+      {type === 'asset' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <label className="block text-sm">Date d'achat</label>
+            <input type="date" value={purchaseDate} onChange={(e) => setPurchaseDate(e.target.value)} className="w-full p-2 border rounded" />
+          </div>
+          <div>
+            <label className="block text-sm">Durée (mois)</label>
+            <input type="number" value={lifeMonths} onChange={(e) => setLifeMonths(Number(e.target.value))} className="w-full p-2 border rounded" />
+          </div>
+        </div>
+      )}
+
+      <div className="flex gap-2">
+        <Button onClick={handleSave} disabled={isSubmitting} className="bg-emerald-600 text-white">Enregistrer</Button>
+      </div>
+    </div>
+  );
+}
+
 export default function Accounting() {
   const navigate = useNavigate();
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -29,6 +103,29 @@ export default function Accounting() {
   const [ledgers, setLedgers] = useState<AccountLedger[]>([]);
   
   const [section, setSection] = useState<'journal' | 'ledger' | 'bilan' | 'resultat'>('journal');
+  // financials modal and tabs
+  const [showFinancials, setShowFinancials] = useState(false);
+  const [financeTab, setFinanceTab] = useState<'pl' | 'bnr' | 'bilan'>('pl');
+
+  // P&L dynamic data
+  const [plData, setPlData] = useState<any>(null);
+  const [bnrData, setBnrData] = useState<any>(null);
+  const [balanceData, setBalanceData] = useState<any>(null);
+
+  const loadFinancials = async () => {
+    try {
+      // make sure amortizations up to end date are applied before computing
+        // Amortizations are simulated at report time (no journal writes)
+      const pl = await getDynamicProfitAndLoss(filterStartDate, filterEndDate);
+      setPlData(pl);
+      const bnr = await getRetainedEarnings(filterStartDate, filterEndDate);
+      setBnrData(bnr);
+      const bal = await getBalanceSheet(filterEndDate + 'T23:59:59');
+      setBalanceData(bal);
+    } catch (e) {
+      console.error('Erreur chargement états financiers:', e);
+    }
+  };
   
   // NEW: Filters
   const [filterAccountCode, setFilterAccountCode] = useState<string>('');
@@ -272,6 +369,12 @@ export default function Accounting() {
           >
             ⬇️ Export PDF
           </Button>
+          <Button
+            onClick={() => { setShowFinancials(true); loadFinancials(); }}
+            className="bg-yellow-500 text-navy-deep hover:bg-yellow-400 font-semibold ml-2"
+          >
+            📦 États Financiers
+          </Button>
           {/* Manual transaction entry removed — all operations now generate automatic accounting entries */}
         </div>
 
@@ -328,6 +431,131 @@ export default function Accounting() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Financials Modal / Panel */}
+        {showFinancials && (
+          <Card className="border-2 border-yellow-400 bg-white">
+            <CardHeader className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-lg">États Financiers</CardTitle>
+                <p className="text-sm text-gray-500">Période: {filterStartDate} → {filterEndDate}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button onClick={() => { setShowFinancials(false); }} className="bg-slate-700 text-white">✖️ Fermer</Button>
+                <Button onClick={() => loadFinancials()} className="bg-emerald-600 text-white">🔄 Recalculer</Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="flex gap-2 mb-4">
+                <Button onClick={() => { setFinanceTab('pl'); loadFinancials(); }} className={`${financeTab === 'pl' ? 'bg-yellow-500 text-navy-deep' : 'bg-slate-200 text-black'}`}>📊 État des Résultats (P&L)</Button>
+                <Button onClick={() => { setFinanceTab('bnr'); loadFinancials(); }} className={`${financeTab === 'bnr' ? 'bg-yellow-500 text-navy-deep' : 'bg-slate-200 text-black'}`}>📈 BNR</Button>
+                <Button onClick={() => { setFinanceTab('bilan'); loadFinancials(); }} className={`${financeTab === 'bilan' ? 'bg-yellow-500 text-navy-deep' : 'bg-slate-200 text-black'}`}>⚖️ Bilan</Button>
+                <div className="ml-auto">
+                  <Button onClick={async () => {
+                    // export current tab
+                    try {
+                      const doc = new jsPDF();
+                      doc.setFontSize(14);
+                      doc.text('États Financiers', 14, 20);
+                      if (financeTab === 'pl' && plData) {
+                        doc.text(`P&L ${filterStartDate} → ${filterEndDate}`, 14, 28);
+                        doc.setFontSize(12);
+                        doc.text(`Revenus produits: ${plData.revenuesProducts}`, 14, 40);
+                        doc.text(`Revenus services: ${plData.revenuesServices}`, 14, 48);
+                        doc.text(`Frais/Commissions: ${plData.feesAndCommissions}`, 14, 56);
+                        doc.text(`Charges: ${plData.expenses}`, 14, 64);
+                        doc.text(`Net après impôts: ${plData.netAfterTaxes}`, 14, 72);
+                      }
+                      if (financeTab === 'bnr' && bnrData) {
+                        doc.text(`BNR`, 14, 40);
+                        doc.text(`Ouverture: ${bnrData.opening}`, 14, 48);
+                        doc.text(`Résultat période: ${bnrData.netIncome}`, 14, 56);
+                        doc.text(`Dividendes: ${bnrData.dividends}`, 14, 64);
+                        doc.text(`Clôture: ${bnrData.closing}`, 14, 72);
+                      }
+                      if (financeTab === 'bilan' && balanceData) {
+                        doc.text(`Bilan au ${filterEndDate}`, 14, 40);
+                        doc.text(`Actifs: ${balanceData.assets}`, 14, 48);
+                        doc.text(`Passifs: ${balanceData.liabilities}`, 14, 56);
+                        doc.text(`Capitaux: ${balanceData.equity}`, 14, 64);
+                      }
+                      downloadPDF(doc, `etats-${financeTab}-${filterStartDate}-to-${filterEndDate}.pdf`);
+                    } catch (err) { console.error(err); }
+                  }} className="bg-blue-700 text-white">⬇️ Export PDF</Button>
+                </div>
+              </div>
+
+              {/* Tab Contents */}
+              {financeTab === 'pl' && (
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-lg font-bold">Compte de Résultat</h3>
+                    <div className="flex gap-2">
+                      <Button onClick={() => {
+                        // open new expense/asset form
+                        const el = document.getElementById('new-charge-form');
+                        if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+                      }} className="bg-emerald-600 text-white">+ Nouvelle Charge/Investissement</Button>
+                    </div>
+                  </div>
+
+                  <div id="new-charge-form" style={{display:'none'}} className="p-4 border rounded mb-4">
+                    <NewChargeForm onSaved={async () => { await loadFinancials(); }} />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Card className="p-4">
+                      <h4 className="font-semibold text-sm">Revenus Produits</h4>
+                      <div className="text-black font-mono text-lg">{plData?.revenuesProducts ?? 0}</div>
+                    </Card>
+                    <Card className="p-4">
+                      <h4 className="font-semibold text-sm">Revenus Services</h4>
+                      <div className="text-black font-mono text-lg">{plData?.revenuesServices ?? 0}</div>
+                    </Card>
+                    <Card className="p-4">
+                      <h4 className="font-semibold text-sm">Frais & Commissions</h4>
+                      <div className="text-black font-mono text-lg">{plData?.feesAndCommissions ?? 0}</div>
+                    </Card>
+                    <Card className="p-4">
+                      <h4 className="font-semibold text-sm">Charges</h4>
+                      <div className="text-black font-mono text-lg">{plData?.expenses ?? 0}</div>
+                    </Card>
+                  </div>
+                </div>
+              )}
+
+              {financeTab === 'bnr' && (
+                <div>
+                  <h3 className="text-lg font-bold mb-2">Bénéfices Non Répartis (BNR)</h3>
+                  <div className="p-3 bg-gray-50 border rounded">
+                    <div className="flex justify-between mb-1"><span>Ouverture</span><span className="font-mono">{bnrData?.opening ?? 0}</span></div>
+                    <div className="flex justify-between mb-1"><span>Résultat période</span><span className="font-mono">{bnrData?.netIncome ?? 0}</span></div>
+                    <div className="flex justify-between mb-1"><span>Dividendes</span><span className="font-mono">{bnrData?.dividends ?? 0}</span></div>
+                    <div className="flex justify-between font-bold"><span>Clôture</span><span className="font-mono">{bnrData?.closing ?? 0}</span></div>
+                  </div>
+                </div>
+              )}
+
+              {financeTab === 'bilan' && (
+                <div>
+                  <h3 className="text-lg font-bold mb-2">Bilan</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Card className="p-3">
+                      <h4 className="font-semibold">ACTIF</h4>
+                      <div className="mt-2 text-black">Total Actif: <span className="font-mono">{balanceData?.assets ?? 0}</span></div>
+                    </Card>
+                    <Card className="p-3">
+                      <h4 className="font-semibold">PASSIF + CAPITAUX PROPRES</h4>
+                      <div className="mt-2 text-black">Total Passif: <span className="font-mono">{balanceData?.liabilities ?? 0}</span></div>
+                      <div className="mt-2 text-black">Total Capitaux: <span className="font-mono">{balanceData?.equity ?? 0}</span></div>
+                    </Card>
+                  </div>
+                </div>
+              )}
+
+            </CardContent>
+          </Card>
+        )}
 
         {/* Content */}
         {/* NEW: Trial Balance */}

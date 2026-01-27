@@ -9,6 +9,13 @@ export interface Product {
   quantity_available: number;
   is_active: boolean;
   is_service: boolean; // true pour services, false pour produits
+  // Optional fields for fixed assets / investments
+  is_asset?: boolean;
+  purchase_price?: number;
+  purchase_date?: string; // ISO date
+  life_months?: number; // durée d'amortissement en mois
+  accumulated_amortization?: number;
+  last_amortization_date?: string;
   // Pourcentage de frais appliqué quand la vente est traitée via un service de paiement numérique
   service_fee_percentage?: number;
   created_at: string;

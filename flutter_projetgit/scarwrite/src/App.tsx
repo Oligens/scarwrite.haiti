@@ -1,9 +1,11 @@
+import React from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Component, ReactNode, ErrorInfo } from "react";
+import LoadingSplash from "./components/LoadingSplash";
 import Welcome from "./pages/Welcome";
 import Dashboard from "./pages/Dashboard";
 import SalesCalendar from "./pages/SalesCalendar";
@@ -72,14 +74,23 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
   }
 }
 
-const App = () => (
-  <ErrorBoundary>
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
+const App = () => {
+  const [showSplash, setShowSplash] = React.useState(true);
+
+  React.useEffect(() => {
+    const t = setTimeout(() => setShowSplash(false), 1200);
+    return () => clearTimeout(t);
+  }, []);
+
+  return (
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          {showSplash && <LoadingSplash />}
+          <BrowserRouter>
+            <Routes>
             <Route path="/" element={<Welcome />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/calendar" element={<SalesCalendar />} />
@@ -105,11 +116,12 @@ const App = () => (
             {/* Nouvelles pages pour entreprises */}
             <Route path="/clients" element={<Clients />} />
             <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
-    </QueryClientProvider>
-  </ErrorBoundary>
-);
+            </Routes>
+          </BrowserRouter>
+        </TooltipProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
+  );
+};
 
 export default App;
