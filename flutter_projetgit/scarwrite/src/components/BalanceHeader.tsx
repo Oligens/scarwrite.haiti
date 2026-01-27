@@ -202,8 +202,15 @@ export function BalanceHeader({ transferType, customTypeName, onBalanceChange, r
                   >
                     <PlusCircle className="h-5 w-5" />
                   </Button>
-                  <Button size="icon" variant="ghost" className="h-6 w-6" onClick={handleStartEditDigital}>
-                    <Pencil className="h-3 w-3" />
+                  <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => {
+                    if (!confirm('Êtes-vous sûr de vouloir supprimer ce compte ? Cette action est irréversible.')) return;
+                    // Zero out balances as a soft-delete
+                    const newB = updateTypeBalance(transferType, customTypeName, { digital_balance: 0 });
+                    setBalance(prev => ({ ...prev, digital_balance: newB.digital_balance }));
+                    toast({ description: 'Compte numérique réinitialisé.' });
+                    onBalanceChange?.();
+                  }}>
+                    <Trash2 className="h-3 w-3 text-destructive" />
                   </Button>
                 </div>
               </div>
@@ -247,8 +254,14 @@ export function BalanceHeader({ transferType, customTypeName, onBalanceChange, r
                   >
                     <PlusCircle className="h-5 w-5" />
                   </Button>
-                  <Button size="icon" variant="ghost" className="h-6 w-6" onClick={handleStartEditCash}>
-                    <Pencil className="h-3 w-3" />
+                  <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => {
+                    if (!confirm('Êtes-vous sûr de vouloir supprimer ce compte ? Cette action est irréversible.')) return;
+                    const newB = updateTypeBalance(transferType, customTypeName, { cash_balance: 0 });
+                    setBalance(prev => ({ ...prev, cash_balance: newB.cash_balance }));
+                    toast({ description: 'Compte cash réinitialisé.' });
+                    onBalanceChange?.();
+                  }}>
+                    <Trash2 className="h-3 w-3 text-destructive" />
                   </Button>
                 </div>
               </div>

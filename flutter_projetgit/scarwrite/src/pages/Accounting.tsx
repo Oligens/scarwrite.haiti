@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { Button } from "@/components/ui/button";
 // Manual transaction form removed — accounting entries are generated automatically by operations
 import { getTrialBalance, getJournalEntriesByDate } from "@/lib/storage";
 import Financials from './Financials';
@@ -60,7 +61,12 @@ export default function Accounting(): JSX.Element {
     <AppLayout title="Comptabilité">
       <div className="p-6">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold">Comptabilité</h1>
+          <div className="flex items-center gap-3">
+            <Button onClick={() => window.history.back()} className="inline-flex items-center gap-2 bg-card/80 hover:bg-card px-3 py-1 rounded">
+              <span className="mr-1">◀</span> Retour
+            </Button>
+            <h1 className="text-2xl font-bold">Comptabilité</h1>
+          </div>
           {/* Button to open full-screen Financials view */}
           <div>
             <button onClick={() => window.dispatchEvent(new CustomEvent('open-financials'))} className="ml-4 bg-yellow-500 text-black font-semibold px-3 py-2 rounded">📦 États Financiers</button>

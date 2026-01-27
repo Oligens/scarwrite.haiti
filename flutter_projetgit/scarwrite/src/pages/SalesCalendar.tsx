@@ -142,14 +142,16 @@ export default function SalesCalendar() {
             <div className="ml-4">
               <Button
                 onClick={() => {
-                  // Navigate to different creation pages depending on type
+                  // Navigate to appropriate creation pages depending on type
                   if (isNonProfit) {
                     navigate(companyType === 'Fondation' ? '/projects' : '/donations');
                   } else {
-                    navigate('/transfers');
+                    // For merchants open today's sales day so user can add a new sale
+                    const today = new Date().toISOString().slice(0, 10);
+                    navigate(`/day/${today}`);
                   }
                 }}
-                className={`${isNonProfit ? 'bg-emerald-500 text-white' : 'bg-amber-500 text-white'} hidden md:inline-flex`}
+                className={`${isNonProfit ? 'bg-emerald-500 text-white' : 'bg-yellow-500 text-black'} hidden md:inline-flex`}
               >
                 {actionButtonLabel}
               </Button>
@@ -202,7 +204,7 @@ export default function SalesCalendar() {
 
         {/* Monthly report link */}
         <div className="text-center">
-          <Button asChild variant="outline" className="border-primary/30 bg-card hover:bg-primary/5">
+          <Button asChild className="bg-slate-800 text-black px-4 py-2 rounded-md shadow-md">
             <Link to={`/reports/month/${currentYear}-${String(currentMonth + 1).padStart(2, "0")}`}>
               Voir le rapport du mois
             </Link>

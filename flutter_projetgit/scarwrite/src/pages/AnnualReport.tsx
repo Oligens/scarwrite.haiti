@@ -50,10 +50,9 @@ export default function AnnualReport() {
       <div className="relative z-10">
         <header className="border-b border-border/50 bg-card/50 backdrop-blur-xl">
           <div className="container flex h-16 items-center gap-4">
-            <Button asChild variant="ghost" size="icon">
-              <Link to="/reports">
-                <ArrowLeft className="h-5 w-5" />
-              </Link>
+            <Button onClick={() => window.history.back()} className="inline-flex items-center gap-2 bg-card/80 hover:bg-card px-3 py-1 rounded">
+              <ArrowLeft className="h-5 w-5" />
+              Retour
             </Button>
             <div>
               <h1 className="font-display text-lg font-bold">

@@ -354,6 +354,24 @@ export default function TransferReports() {
                           <Button
                             size="sm"
                             variant="ghost"
+                            onClick={async () => {
+                              try {
+                                const { generateOperationReceipt } = await import('@/lib/pdf');
+                                const { downloadPDF } = await import('@/lib/pdf');
+                                const doc = generateOperationReceipt(op as any);
+                                downloadPDF(doc, `recu-operation-${op.id.slice(0,8)}.pdf`);
+                                toast({ title: 'Reçu opération généré' });
+                              } catch (err) {
+                                console.error(err);
+                                toast({ title: 'Erreur', description: 'Impossible de générer le reçu', variant: 'destructive' });
+                              }
+                            }}
+                          >
+                            <Printer className="h-4 w-4 text-yellow-500" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
                             onClick={() => setEditingId(op.id)}
                           >
                             <Edit className="h-4 w-4" />

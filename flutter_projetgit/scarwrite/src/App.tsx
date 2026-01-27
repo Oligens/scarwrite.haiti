@@ -23,6 +23,7 @@ import TransferReports from "./pages/TransferReports";
 import TransferMonthlyReport from "./pages/TransferMonthlyReport";
 import TransferAnnualReport from "./pages/TransferAnnualReport";
 import Accounting from "./pages/Accounting";
+import TestSimulation from "./pages/TestSimulation";
 import Suppliers from "./pages/Suppliers";
 import NotFound from "./pages/NotFound";
 import Donations from "./pages/Donations";
@@ -102,6 +103,7 @@ const App = () => {
             <Route path="/settings" element={<Settings />} />
             <Route path="/fiscality" element={<Fiscality />} />
             <Route path="/accounting" element={<Accounting />} />
+            <Route path="/test-simulation" element={<TestSimulation />} />
             <Route path="/suppliers" element={<Suppliers />} />
             <Route path="/transfers" element={<Transfers />} />
             <Route path="/transfers/calendar" element={<TransfersCalendar />} />

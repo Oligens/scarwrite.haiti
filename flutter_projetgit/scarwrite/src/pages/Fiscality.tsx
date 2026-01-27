@@ -5,7 +5,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "@/lib/lucide-react";
 import { getTaxSummaryByMonth, getTaxSummaryByYear, getTaxedTransactionsByMonth, calculateTaxesFromAccounting, getTaxSummaryByPeriod } from "@/lib/storage";
-import { generateTaxCertificatePDF, downloadPDF } from "@/lib/pdf";
+import { generateTaxCertificatePDF, generateTaxCertificateFromData, downloadPDF } from "@/lib/pdf";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function Fiscality() {
@@ -48,7 +48,27 @@ export default function Fiscality() {
   }, [year, month]);
 
   const handleExport = async () => {
-    const doc = await generateTaxCertificatePDF(year, month);
+    // Build a summary from currently filtered transactions (on-screen state)
+    const breakdown: Record<string, number> = {};
+    let totalTaxes = 0;
+    transactions.forEach(t => {
+      const amt = Number(t.tax_amount || 0);
+      totalTaxes += amt;
+      breakdown[t.tax_name] = (breakdown[t.tax_name] || 0) + amt;
+    });
+
+    // Use the new PDF generator that accepts provided rows so the exported PDF
+    // matches exactly what the user sees on-screen (filtered state)
+    const doc = generateTaxCertificateFromData(year, month, transactions.map(t => ({
+      transaction_date: t.transaction_date,
+      transaction_type: t.transaction_type,
+      transaction_id: t.transaction_id,
+      base_amount: Number(t.base_amount || 0),
+      tax_name: t.tax_name,
+      tax_percentage: Number(t.tax_percentage || 0),
+      tax_amount: Number(t.tax_amount || 0),
+    })), { totalTaxes, breakdown });
+
     downloadPDF(doc, `certificat-fiscal-${year}-${String(month).padStart(2, '0')}.pdf`);
   };
 

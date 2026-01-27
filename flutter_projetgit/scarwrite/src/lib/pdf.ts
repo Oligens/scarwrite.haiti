@@ -336,6 +336,77 @@ export const generateTaxCertificatePDF = async (year: number, month: number, opt
   return doc;
 };
 
+// Génère un certificat fiscal (mensuel) en utilisant des lignes de transaction et un résumé fournis
+export const generateTaxCertificateFromData = (
+  year: number,
+  month: number,
+  transactions: Array<{ transaction_date: string; transaction_type: string; transaction_id: string; base_amount: number; tax_name: string; tax_percentage: number; tax_amount: number }>,
+  summary: { totalTaxes?: number; breakdown?: Record<string, number> } = {},
+  opts?: { currency?: string }
+): jsPDF => {
+  const doc = createDoc();
+  const settings = getSettings();
+  const currency = opts?.currency || settings.currency_symbol;
+
+  addHeader(doc, `Certificat Fiscal - ${MONTHS_FR[month - 1]} ${year}`);
+
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Résumé des taxes collectées', 14, 50);
+
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  let y = 58;
+
+  // Afficher résumé par taxe si fourni
+  if (summary.breakdown) {
+    Object.entries(summary.breakdown).forEach(([name, amount]) => {
+      doc.text(`${name}:`, 14, y);
+      writeBoldAmount(doc, 180, y, amount, currency, { align: 'right' });
+      y += 7;
+    });
+  }
+
+  // Total général
+  if (summary.totalTaxes != null) {
+    y += 4;
+    doc.setFont('helvetica', 'bold');
+    doc.text('TOTAL TAXES:', 14, y);
+    writeBoldAmount(doc, 180, y, summary.totalTaxes, currency, { align: 'right' });
+    doc.setFont('helvetica', 'normal');
+    y += 8;
+  } else {
+    y += 8;
+  }
+
+  // Détail ligne par ligne (Date | Transaction | Base HT | Taxe | Montant taxe)
+  doc.setFont('helvetica', 'bold');
+  doc.text('Registre des Taxes (Date | Transaction | Base HT | Taxe | Montant taxe)', 14, y);
+  y += 6;
+  doc.setFont('helvetica', 'normal');
+
+  transactions.forEach((t) => {
+    if (y > 270) {
+      doc.addPage();
+      y = 20;
+    }
+    const date = new Date(t.transaction_date).toLocaleDateString('fr-FR');
+    const tx = `${date} | ${t.transaction_type}/${t.transaction_id}`;
+    doc.text(tx, 14, y);
+    writeBoldAmount(doc, 100, y, t.base_amount, currency, { align: 'right' });
+    doc.text(`${t.tax_name} (${t.tax_percentage}%)`, 130, y);
+    writeBoldAmount(doc, 180, y, t.tax_amount, currency, { align: 'right' });
+    y += 6;
+  });
+
+  // Footer / signature
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'italic');
+  doc.text('Certificat généré par ScarWrite — basé sur les données affichées', 105, 290, { align: 'center' });
+
+  return doc;
+};
+
 /**
  * Génère un reçu client pour une vente unique
  */
@@ -458,6 +529,110 @@ export const generateClientReceipt = (
   doc.setTextColor(100, 100, 100);
   doc.text('Merci pour votre achat!', 105, yPos, { align: 'center' });
 
+  return doc;
+};
+
+// Generate a client receipt from a Sale object (rich metadata)
+export const generateClientReceiptFromSale = (sale: any): jsPDF => {
+  // Prefer richer layout: include receipt id, seller, payment method, taxes if present
+  const doc = createDoc();
+  const settings = getSettings();
+  const date = sale.sale_date || sale.created_at || new Date().toISOString().slice(0,10);
+
+  // Header
+  doc.setFillColor(255, 255, 255);
+  doc.rect(0, 0, 210, 50, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(14);
+  doc.setTextColor(0,0,0);
+  doc.text(settings.restaurant_name || 'ScarWrite', 15, 18);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  if ((settings as any).company_address) doc.text((settings as any).company_address, 15, 24);
+  if ((settings as any).company_phone) doc.text((settings as any).company_phone, 15, 30);
+
+  // Receipt meta
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.text(`Reçu #: ${sale.id?.slice(0,8) || '—'}`, 150, 18);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Date: ${new Date(date).toLocaleString('fr-FR')}`, 150, 24);
+  if (sale.client_name) doc.text(`Client: ${sale.client_name}`, 150, 30);
+
+  // Items
+  let y = 48;
+  doc.setFont('helvetica', 'bold');
+  doc.text('Désignation', 15, y);
+  doc.text('Qté', 110, y, { align: 'right' });
+  doc.text('PU', 140, y, { align: 'right' });
+  doc.text('Total', 190, y, { align: 'right' });
+  y += 6;
+  doc.setFont('helvetica', 'normal');
+  doc.text(sale.product_name || 'Article', 15, y);
+  doc.text(String(sale.quantity || 1), 110, y, { align: 'right' });
+  writeBoldAmount(doc, 140, y, sale.unit_price || sale.total || 0, settings.currency_symbol);
+  writeBoldAmount(doc, 190, y, sale.total || 0, settings.currency_symbol, { align: 'right' });
+  y += 12;
+
+  // Subtotal / Taxes / Total
+  const subtotal = sale.total || 0;
+  const taxed = (() => {
+    try {
+      // try to pull tax record
+      // caller may pass sale._tax or generator can look up taxed_transactions elsewhere
+      return sale.tax_amount || 0;
+    } catch { return 0; }
+  })();
+
+  doc.setFont('helvetica', 'normal');
+  doc.text('Sous-total HT', 140, y, { align: 'left' });
+  writeBoldAmount(doc, 190, y, subtotal - (taxed || 0), settings.currency_symbol, { align: 'right' });
+  y += 6;
+  if (taxed && taxed > 0) {
+    doc.text('Taxes', 140, y, { align: 'left' });
+    writeBoldAmount(doc, 190, y, taxed, settings.currency_symbol, { align: 'right' });
+    y += 6;
+  }
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('Total Net à Payer', 140, y, { align: 'left' });
+  writeBoldAmount(doc, 190, y, subtotal, settings.currency_symbol, { align: 'right' });
+  y += 12;
+
+  // Payment method
+  doc.setFont('helvetica', 'normal');
+  const pm = sale.is_credit ? (sale.paid_amount && sale.paid_amount > 0 ? 'Dette (acompte)' : 'Dette') : 'Cash / Numérique';
+  doc.text(`Paiement: ${pm}`, 15, y);
+  y += 8;
+
+  // Footer
+  doc.setFont('helvetica', 'italic');
+  doc.setFontSize(9);
+  doc.text('Merci de votre confiance ! Politique de retour: 7 jours avec reçu.', 105, 285, { align: 'center' });
+
+  return doc;
+};
+
+export const generateOperationReceipt = (op: any): jsPDF => {
+  const doc = createDoc();
+  const settings = getSettings();
+  const date = op.operation_date || op.created_at || new Date().toISOString();
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(14);
+  doc.text(settings.restaurant_name || 'ScarWrite', 15, 18);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  if (op.sender_name || op.receiver_name) {
+    doc.text(`${op.sender_name || ''} → ${op.receiver_name || ''}`, 15, 28);
+  }
+  doc.setFont('helvetica', 'bold');
+  doc.text(`Montant: ${op.amount_gdes?.toLocaleString('fr-FR', {minimumFractionDigits:2})} ${settings.currency_symbol}`, 150, 18, { align: 'right' });
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Date: ${new Date(date).toLocaleString('fr-FR')}`, 150, 24, { align: 'right' });
+
+  doc.setFont('helvetica', 'italic');
+  doc.text('Reçu opérationnel — ScarWrite', 105, 285, { align: 'center' });
   return doc;
 };
 

@@ -3,6 +3,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { getDynamicProfitAndLoss, getRetainedEarnings, getBalanceSheet, createAccountingTransaction, addFixedAsset } from '@/lib/storage';
+import { payDividends, transferUndistributedToBNR } from '@/lib/storage';
 import jsPDF from 'jspdf';
 import { downloadPDF } from '@/lib/pdf';
 
@@ -117,6 +118,15 @@ export default function Financials({ onClose }: { onClose?: () => void }) {
                 </div>
                 <div className="mt-4">
                   <Button onClick={() => setShowNewCharge(true)} className="bg-emerald-600 text-white">+ Nouvelle Charge/Investissement</Button>
+                  <div className="mt-3 space-y-2">
+                    <div className="text-black">Taxes collectées (TCA): <span className="font-mono">{pl?.taxes ?? 0}</span></div>
+                    <div className="text-black">Impôt sur le revenu (30%): <span className="font-mono">{pl?.incomeTax ?? 0}</span></div>
+                    <div className="text-black font-bold">Résultat net final: <span className="font-mono">{pl?.netAfterTaxes ?? 0}</span></div>
+                    <div className="flex gap-2 mt-2">
+                      <Button onClick={async () => { try { await payDividends(pl?.dividendsDistributed || 0); await load(); alert('Dividendes payés'); } catch(e){ alert('Erreur paiement dividendes'); } }} className="bg-rose-600 text-white">Payer les dividendes</Button>
+                      <Button onClick={async () => { try { const res = await transferUndistributedToBNR(startDate, endDate); await load(); alert(`Transféré aux BNR: ${res.transferred}`); } catch(e){ alert('Erreur affectation BNR'); } }} className="bg-slate-700 text-white">Affecter reste aux BNR</Button>
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>

@@ -7,7 +7,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Trash2 } from "@/lib/lucide-react";
+import { Trash2, Printer } from "@/lib/lucide-react";
+import { generateClientReceiptFromSale } from '@/lib/pdf';
+import { downloadPDF } from '@/lib/pdf';
 import { useToast } from "@/hooks/use-toast";
 import { deleteSale, getSettings, Sale } from "@/lib/storage";
 
@@ -55,7 +57,25 @@ export function SalesTable({ sales, onUpdate }: SalesTableProps) {
             <TableCell className="text-right font-semibold text-primary">
               {formatCurrency(sale.total)}
             </TableCell>
-            <TableCell>
+            <TableCell className="flex gap-2 justify-end">
+              <Button
+                size="icon"
+                onClick={() => {
+                  try {
+                    const doc = generateClientReceiptFromSale(sale as any);
+                    downloadPDF(doc, `recu-${sale.id.slice(0,8)}.pdf`);
+                    toast({ title: 'Reçu généré', description: 'Le reçu a été téléchargé' });
+                  } catch (err) {
+                    console.error(err);
+                    toast({ title: 'Erreur', description: 'Impossible de générer le reçu', variant: 'destructive' });
+                  }
+                }}
+                className="h-8 w-8 bg-yellow-400 text-black hover:bg-yellow-500 rounded-md shadow-md"
+                title="Imprimer le reçu"
+              >
+                <Printer className="h-4 w-4" />
+              </Button>
+
               <Button
                 variant="ghost"
                 size="icon"

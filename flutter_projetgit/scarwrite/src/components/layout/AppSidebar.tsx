@@ -10,6 +10,7 @@ import {
   Heart,
   FolderOpen,
   Calendar,
+  BarChart3,
   Settings,
   FileText,
   Calculator,
@@ -58,6 +59,7 @@ export function AppSidebar({ onClose, isMobile }: AppSidebarProps) {
       const commonItems: MenuItem[] = [
         { icon: Calendar, label: "Calendrier", path: "/calendar" },
         { icon: Calculator, label: "Comptabilité", path: "/accounting" },
+        { icon: BarChart3, label: "Rapports", path: "/reports" },
         { icon: FileText, label: "Fiscalité", path: "/fiscality" },
         { icon: Settings, label: "Paramètres", path: "/settings" },
       ];

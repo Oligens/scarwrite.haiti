@@ -635,6 +635,7 @@ export default function Accounting() {
                       <th className="p-3 text-left font-semibold">Libellé (Description)</th>
                       <th className="p-3 text-right font-semibold">Débit</th>
                       <th className="p-3 text-right font-semibold">Crédit</th>
+                      <th className="p-3 text-right font-semibold">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -655,6 +656,33 @@ export default function Accounting() {
                           </td>
                           <td className="p-3 text-right font-mono text-black font-bold">
                             {j.credit > 0 ? j.credit.toFixed(2) : ''}
+                          </td>
+                          <td className="p-3 text-right">
+                            {j.transaction_type === 'sale' && j.transaction_id ? (
+                              <button
+                                className="h-8 w-8 bg-yellow-400 text-black rounded-md shadow-md inline-flex items-center justify-center"
+                                onClick={async () => {
+                                  try {
+                                    const { getSaleById } = await import('@/lib/storage');
+                                    const sale = await getSaleById(j.transaction_id!);
+                                    if (!sale) { alert('Vente introuvable'); return; }
+                                    const { generateClientReceiptFromSale } = await import('@/lib/pdf');
+                                    const doc = generateClientReceiptFromSale(sale);
+                                    const { downloadPDF } = await import('@/lib/pdf');
+                                    downloadPDF(doc, `recu-${sale.id.slice(0,8)}.pdf`);
+                                  } catch (err) {
+                                    console.error(err);
+                                    alert('Impossible de générer le reçu');
+                                  }
+                                }}
+                                title="Imprimer le reçu"
+                              >
+                                <span className="sr-only">Imprimer</span>
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 9V2h12v7M6 18h12v-6H6v6z" />
+                                </svg>
+                              </button>
+                            ) : null}
                           </td>
                         </tr>
                       ))

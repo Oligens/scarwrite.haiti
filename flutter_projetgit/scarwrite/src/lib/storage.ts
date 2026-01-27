@@ -517,6 +517,16 @@ export const getSalesByFiscalYear = async (startYear: number): Promise<Sale[]> =
   }
 };
 
+export const getSaleById = async (id: string): Promise<Sale | null> => {
+  try {
+    const s = await db.sales.get(id);
+    return s || null;
+  } catch (error) {
+    console.error('Erreur getSaleById:', error);
+    return null;
+  }
+};
+
 export const addSale = async (
   productId: string,
   productName: string,
@@ -751,8 +761,10 @@ export const getMonthlyTotals = async (startYear: number): Promise<Array<{ month
       month,
       year,
       total,
-      label: `${MONTHS_FR[i]} ${year}`,
-      value: total.toFixed(2),
+      // label should reflect the actual chronological month name (Oct -> Sep fiscal year)
+      label: `${MONTHS_FR[month - 1]} ${year}`,
+      // value should be a route-safe year-month string used by MonthlyReport
+      value: `${year}-${String(month).padStart(2, '0')}`,
     });
   }
   return months;
@@ -1811,8 +1823,9 @@ export const saveShareholders = async (shareholders: Array<{ name: string; perce
     if (initialCapital && initialCapital > 0) {
       // Create a single accounting entry: Debit Bank (5120) / Credit 101 (Capital Social)
       const today = new Date().toISOString().slice(0,10);
+      // Use Cash (5311) for initial capital per requirement: Debit 5311 / Credit 101
       await createAccountingTransaction([
-        { journal_date: today, transaction_type: 'shareholders', account_code: '5120', account_name: 'Banque', debit: initialCapital, credit: 0, description: 'Apports des actionnaires (constitution)'} ,
+        { journal_date: today, transaction_type: 'shareholders', account_code: '5311', account_name: 'Caisse', debit: initialCapital, credit: 0, description: 'Apports des actionnaires (constitution)'} ,
         { journal_date: today, transaction_type: 'shareholders', account_code: '101', account_name: 'Capital social', debit: 0, credit: initialCapital, description: 'Apports des actionnaires (constitution)'}
       ]);
     }
@@ -2079,16 +2092,14 @@ export const getDynamicProfitAndLoss = async (startDate: string, endDate: string
       }
     });
 
-    // 2) Compute taxes dynamically from active tax configs applied to sale bases
-    const taxesConfig = await getTaxConfigs();
-    // gather sales in period and apply taxes on sale.total (assumed HT/base)
-    const salesRows: Sale[] = await db.sales.filter(s => s.sale_date >= startDate && s.sale_date <= endDate).toArray();
+    // 2) Compute taxes collected (TCA) from the Fiscalité module (taxed_transactions)
     let taxes = 0;
-    for (const s of salesRows) {
-      const base = Number.isFinite(s.total) ? s.total : 0;
-      for (const t of taxesConfig) {
-        taxes += Math.round(base * (t.percentage / 100) * 100) / 100;
-      }
+    try {
+      const taxedTx = await getTaxedTransactionsByDate(startDate, endDate);
+      taxes = taxedTx.reduce((s, t) => s + (t.tax_amount || 0), 0);
+    } catch (e) {
+      console.warn('Erreur récupération taxes collectées:', e);
+      taxes = 0;
     }
 
     const totalRevenues = Math.round((revenuesProducts + revenuesServices + feesAndCommissions) * 100) / 100;
@@ -2143,25 +2154,31 @@ export const getDynamicProfitAndLoss = async (startDate: string, endDate: string
     const cmvTotal = Math.round(((cmvFromJournal || cmvFromSales) || 0) * 100) / 100;
 
     const netBeforeTaxes = Math.round((totalRevenues - expensesWithAmort - cmvTotal) * 100) / 100;
-    const netAfterTaxes = Math.round((netBeforeTaxes - taxes) * 100) / 100;
+
+    // Income tax calculation: use a default 30% rate (can be made configurable)
+    const INCOME_TAX_RATE = 0.30;
+    const incomeTax = Math.round(Math.max(0, netBeforeTaxes) * INCOME_TAX_RATE * 100) / 100;
+
+    // Net after taxes = NetBeforeTaxes - (TCA collected) - (Income tax)
+    const netAfterTaxes = Math.round((netBeforeTaxes - taxes - incomeTax) * 100) / 100;
 
     // 3) Shareholder allocation (for SA/SARL-like companies) based on settings/shareholders
     const shareholders = await getShareholders();
-    const settingsLocal = getSettings();
-    const dividendRate = Number((settingsLocal as any).dividend_rate || 0) || 0;
+    // Compute dynamic dividends per shareholder as NetAfterTaxes * shareholder% (preview only)
     let dividendsDistributed = 0;
     const shareholderAllocations: Array<{ name: string; percentage: number; amount: number }> = [];
-    // Only distribute for commercial entities (not NGOs/foundations)
     const companyType = (await getCompanyProfile())?.company_type || '';
     const isSocial = ['Organisation Non Gouvernementale', 'Fondation', 'Organisation Internationale'].includes(companyType || '');
-    if (!isSocial && shareholders.length > 0 && dividendRate > 0) {
-      const amountForDistribution = Math.round(netAfterTaxes * dividendRate * 100) / 100;
-      dividendsDistributed = amountForDistribution;
+    if (!isSocial && shareholders.length > 0) {
       for (const sh of shareholders) {
-        const part = ((sh.percentage || 0) / 100) * amountForDistribution;
-        shareholderAllocations.push({ name: sh.name, percentage: sh.percentage, amount: Math.round(part * 100) / 100 });
+        const amount = Math.round((netAfterTaxes * ((sh.percentage || 0) / 100)) * 100) / 100;
+        shareholderAllocations.push({ name: sh.name, percentage: sh.percentage, amount });
+        dividendsDistributed += amount;
       }
+      dividendsDistributed = Math.round(dividendsDistributed * 100) / 100;
     }
+
+    // Expose computed incomeTax and taxes collected as part of the result for UI
 
     return {
       revenuesProducts: Math.round(revenuesProducts * 100) / 100,
@@ -2172,6 +2189,7 @@ export const getDynamicProfitAndLoss = async (startDate: string, endDate: string
       amortization: Math.round(amortizationTotal * 100) / 100,
       cmv: Math.round((cmvTotal || 0) * 100) / 100,
       taxes: Math.round(taxes * 100) / 100,
+      incomeTax: Math.round((incomeTax || 0) * 100) / 100,
       netBeforeTaxes,
       netAfterTaxes,
       dividendsDistributed: Math.round(dividendsDistributed * 100) / 100,
@@ -2333,6 +2351,43 @@ export const getRetainedEarnings = async (fromDate: string, toDate: string): Pro
   } catch (err) {
     console.error('Erreur calcul BMR:', err);
     return { opening: 0, netIncome: 0, dividends: 0, closing: 0 };
+  }
+};
+
+// Pay dividends: create accounting entries to pay from cash (5311) and debit BNR (119)
+export const payDividends = async (amount: number, payDate?: string): Promise<void> => {
+  try {
+    const journalDate = payDate ? payDate : new Date().toISOString().slice(0,10);
+    const entries = [
+      { journal_date: journalDate, transaction_type: 'dividend_payment', account_code: '119', account_name: 'Bénéfices non répartis', debit: amount, credit: 0, description: `Paiement dividendes` },
+      { journal_date: journalDate, transaction_type: 'dividend_payment', account_code: '5311', account_name: 'Caisse', debit: 0, credit: amount, description: `Paiement dividendes` },
+    ];
+    await createAccountingTransaction(entries as any);
+    try { if (typeof window !== 'undefined') { window.dispatchEvent(new CustomEvent('ledger-updated')); window.dispatchEvent(new CustomEvent('financials-updated')); } } catch (e) {}
+  } catch (err) {
+    console.error('Erreur paiement dividendes:', err);
+    throw err;
+  }
+};
+
+// Transfer undistributed profit to BNR (create closing entry): Debit 121 (Résultat net) / Credit 119 (BNR)
+export const transferUndistributedToBNR = async (startDate: string, endDate: string, transferDate?: string): Promise<{ transferred: number }> => {
+  try {
+    const pnl = await getDynamicProfitAndLoss(startDate, endDate);
+    const totalDividends = (pnl.dividendsDistributed || 0);
+    const undistributed = Math.round(Math.max(0, (pnl.netAfterTaxes || 0) - totalDividends) * 100) / 100;
+    if (undistributed <= 0) return { transferred: 0 };
+    const journalDate = transferDate ? transferDate : new Date().toISOString().slice(0,10);
+    const entries = [
+      { journal_date: journalDate, transaction_type: 'close_results', account_code: '121', account_name: 'Résultat net de l\'exercice', debit: undistributed, credit: 0, description: 'Affectation résultat non distribué → BNR' },
+      { journal_date: journalDate, transaction_type: 'close_results', account_code: '119', account_name: 'Bénéfices non répartis', debit: 0, credit: undistributed, description: 'Affectation résultat non distribué → BNR' },
+    ];
+    await createAccountingTransaction(entries as any);
+    try { if (typeof window !== 'undefined') { window.dispatchEvent(new CustomEvent('ledger-updated')); window.dispatchEvent(new CustomEvent('financials-updated')); } } catch (e) {}
+    return { transferred: undistributed };
+  } catch (err) {
+    console.error('Erreur affectation BNR:', err);
+    throw err;
   }
 };
 
