@@ -118,18 +118,21 @@ export default function Fiscality() {
       ]);
     }
 
+    // Use the on-screen filtered taxes (state) when generating the PDF
+    const taxRowsForPdf = filteredTaxes.map(ft => ({
+      transaction_date: ft.date,
+      transaction_type: ft.description,
+      transaction_id: '',
+      base_amount: Number(ft.baseHT || 0),
+      tax_name: '',
+      tax_percentage: Number(ft.rate || 0),
+      tax_amount: Number(ft.amount || 0),
+    }));
+
     const doc = generateTaxCertificateFromData(
       exportYear,
       exportMonth,
-      transactions.map(t => ({
-        transaction_date: t.transaction_date,
-        transaction_type: t.transaction_type,
-        transaction_id: t.transaction_id,
-        base_amount: Number(t.base_amount || 0),
-        tax_name: t.tax_name,
-        tax_percentage: Number(t.tax_percentage || 0),
-        tax_amount: Number(t.tax_amount || 0),
-      })),
+      taxRowsForPdf,
       { totalTaxes, breakdown },
       { taxConfigs: taxes, preformattedBody: tableBody, currency: 'G' }
     );

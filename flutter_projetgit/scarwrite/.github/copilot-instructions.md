@@ -1,3 +1,62 @@
+<!-- Copilot instructions for working with the ScarWrite codebase -->
+# ScarWrite — AI coding agent instructions
+
+Purpose: quickly orient an AI coding agent to be productive in this repository.
+
+- Project entry: `src/main.tsx` (root render). App routing and pages live in `src/App.tsx` and `src/pages/*`.
+- Dev start: run `npm i` then `npm run dev` (Vite dev server, port 8080 by default as configured in `vite.config.ts`).
+- Build: `npm run build` (production) and `npm run preview` to check built output.
+
+Key architecture & patterns
+- React + TypeScript SPA using Vite, React Router, and TanStack Query (`@tanstack/react-query`). See `src/App.tsx` for QueryClientProvider + BrowserRouter usage.
+- UI: Tailwind + shadcn-style components. UI primitives and toasters live under `src/components/ui` (e.g. Toaster, Sonner wrappers used in `App.tsx`).
+- Data layer: client-side persistent DB built on `dexie` (IndexedDB). Single DB file: `src/lib/database.ts` (look for `AppDatabase`, `db`, and helper functions like `initDatabase`, `executeFinancialTransaction`).
+- PWA: `vite-plugin-pwa` is enabled in `vite.config.ts` (service worker + manifest). Changes to offline behaviour should consider the plugin config.
+- Aliases: import alias `@/*` maps to `src/*` (see `tsconfig.json` and `vite.config.ts`); prefer `@/` imports to maintain consistency.
+
+Project-specific conventions
+- Filenames: Components and pages use PascalCase (e.g. `Dashboard.tsx`, `SalesCalendar.tsx`). Add new pages under `src/pages` and register a `Route` in `src/App.tsx`.
+- State & data flows: persistent data operations occur through `src/lib/database.ts`. Prefer using the provided helper functions (`addTransfer`, `executeFinancialTransaction`, etc.) instead of ad-hoc direct Dexie calls.
+- Error handling: app uses a top-level `ErrorBoundary` in `src/App.tsx` and `src/components/ErrorBoundary.tsx`; catch unexpected exceptions there and log to console.
+- Styling: global styles in `src/index.css` and Tailwind configured in `tailwind.config.ts`; prefer utility-first Tailwind classes.
+
+Developer workflows & useful commands
+- Install & dev server:
+
+```
+npm i
+npm run dev
+```
+
+- Build / preview:
+
+```
+npm run build
+npm run preview
+```
+
+- Linting: `npm run lint` (ESLint). Keep code style aligned with project ESLint config.
+
+Notes and gotchas
+- Dev server host/port: Vite server is configured to listen on `::` and port `8080` in `vite.config.ts` (use that port if scripts or docs reference it).
+- IndexedDB schema: `AppDatabase` versioned stores are defined in `src/lib/database.ts` (current version uses `.version(10)`). When changing stores, bump the Dexie version carefully.
+- PWA assets: `vite.config.ts` includes `scarwrite.png`, `pwa-192x192.png`, `pwa-512x512.png`. Ensure asset names remain consistent.
+- Avoid changing the commented-out branding/tagger lines unless necessary (`lovable-tagger` usage in `vite.config.ts` is intentionally disabled).
+
+Where to look for examples
+- Routing & pages: `src/App.tsx` and `src/pages/*`
+- Database logic: `src/lib/database.ts`
+- Common components and UI patterns: `src/components/*` and `src/components/ui/*`
+- Entry point: `src/main.tsx`
+- Build config: `vite.config.ts`, `package.json` scripts, `tsconfig.json`
+
+When you change code
+- Run `npm run dev` to verify the UI and console logs. For DB schema changes, consider writing a small script to migrate or reset local IndexedDB during development.
+
+If unclear
+- Ask for the specific target (bugfix, feature, refactor) and provide the component/page path and expected behavior. I will prefer minimal, scoped changes and run the dev server locally to validate.
+
+-- end
 # Copilot Instructions for ScarWrite (GoutBouche Rapport)
 
 ## Architecture Overview

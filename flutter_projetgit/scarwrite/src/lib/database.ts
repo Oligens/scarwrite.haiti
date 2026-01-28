@@ -1,6 +1,6 @@
 import Dexie, { Table } from 'dexie';
 
-// Interfaces pour les données
+// --- INTERFACES ---
 export interface Product {
   id: string;
   name: string;
@@ -8,16 +8,14 @@ export interface Product {
   cost_price: number;
   quantity_available: number;
   is_active: boolean;
-  is_service: boolean; // true pour services, false pour produits
-  // Optional fields for fixed assets / investments
+  is_service: boolean;
+  service_fee_percentage?: number; 
   is_asset?: boolean;
   purchase_price?: number;
-  purchase_date?: string; // ISO date
-  life_months?: number; // durée d'amortissement en mois
   accumulated_amortization?: number;
   last_amortization_date?: string;
-  // Pourcentage de frais appliqué quand la vente est traitée via un service de paiement numérique
-  service_fee_percentage?: number;
+  purchase_date?: string;
+  life_months?: number;
   created_at: string;
   updated_at: string;
   entity_type?: string;
@@ -38,14 +36,8 @@ export interface Sale {
   entity_type?: string;
 }
 
-export type TransferType =
-  | 'zelle'
-  | 'moncash'
-  | 'natcash'
-  | 'cam_transfert'
-  | 'western_union'
-  | 'moneygram'
-  | 'autre';
+export type TransferType = 'zelle' | 'moncash' | 'natcash' | 'cam_transfert' | 'western_union' | 'moneygram' | 'autre';
+export type OperationType = 'transfer' | 'deposit' | 'withdrawal';
 
 export interface Transfer {
   id: string;
@@ -57,49 +49,142 @@ export interface Transfer {
   sender_phone?: string;
   receiver_name?: string;
   receiver_phone?: string;
-  amount: number;
-  usd_amount?: number;
+  amount_usd?: number;
+  amount_gourdes: number;
   exchange_rate?: number;
-  fees?: number;
-  notes?: string;
+  transfer_fee: number;
+  commission?: number;
   created_at: string;
   entity_type?: string;
 }
-
-export type OperationType = 'transfer' | 'deposit' | 'withdrawal';
 
 export interface FinancialOperation {
   id: string;
   operation_number: number;
   operation_type: OperationType;
-  service_name: TransferType; // Nom du service (Zelle, MonCash, etc.)
-  custom_service_name?: string; // Pour "autre" type
+  service_name: TransferType;
+  custom_service_name?: string;
   operation_date: string;
-
-  // Identité
   sender_name?: string;
-  sender_phone?: string;
+  sender_phone?: string; // Ajouté pour MonCash/NatCash
   receiver_name?: string;
-  receiver_phone?: string;
-
-  // Devises
-  amount_gdes: number; // Montant en GDES
-  amount_usd?: number; // Montant en USD
+  receiver_phone?: string; // Ajouté pour MonCash/NatCash
+  // historic field name may be `amount_gdes` in older records — prefer `amount_gourdes`
+  amount_gdes?: number;
+  amount_gourdes: number;
+  amount_usd?: number;
   exchange_rate?: number;
-
-  // Gains
-  fees?: number; // Frais (cash ou numérique selon le type)
-  commission?: number; // Commission
-
-  // États des stocks (Avant/Après)
+  fees?: number;
+  commission?: number;
   cash_before: number;
   cash_after: number;
   digital_before: number;
   digital_after: number;
-
-  notes?: string;
   created_at: string;
   entity_type?: string;
+}
+
+// Additional shared types used across storage and UI
+export type CompanyType =
+  | 'Entreprise Individuelle'
+  | 'Societe Anonyme'
+  | 'Societe a Responsabilite Limitee'
+  | 'Organisation Non Gouvernementale'
+  | 'Fondation'
+  | 'Organisation Internationale'
+  | string;
+
+export interface CompanyProfile {
+  id: string;
+  company_type: CompanyType;
+  company_name: string;
+  fiscal_year_start: number;
+  created_at: string;
+  updated_at: string;
+  vat_number?: string;
+  address?: string;
+}
+
+export interface Settings {
+  restaurant_name?: string;
+  currency_symbol?: string;
+  fiscal_year_start?: number;
+  language?: string;
+  income_tax_rate?: number;
+  transfer_house_enabled?: boolean;
+  exchange_rate?: number;
+  default_transfer_fee?: number;
+  initial_capital?: number;
+  company_type?: CompanyType;
+}
+
+export interface TaxConfig {
+  id: string;
+  name: string;
+  rate?: number;
+  percentage?: number;
+  is_active?: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface Account {
+  id: string;
+  code: string;
+  name: string;
+  type?: string;
+  description?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface TypeBalance {
+  cash_balance: number;
+  digital_balance: number;
+  last_updated?: string;
+}
+
+export interface AccountingEntry {
+  id: string;
+  journal_date: string;
+  transaction_type?: string;
+  transaction_id?: string;
+  account_code?: string;
+  account_name?: string;
+  debit?: number;
+  credit?: number;
+  description?: string;
+  created_at?: string;
+}
+
+export interface ThirdParty {
+  id: string;
+  name: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  type?: string;
+  created_at?: string;
+  updated_at?: string;
+  balance?: number;
+}
+
+export interface ServiceConfig {
+  id: string;
+  transfer_type: string;
+  name?: string;
+  custom_name?: string;
+  is_own_service?: boolean;
+  settings?: Record<string, unknown>;
+  created_at?: string;
+}
+
+export interface Shareholder {
+  id: string;
+  name: string;
+  percentage: number;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface Balance {
@@ -109,399 +194,260 @@ export interface Balance {
   updated_at: string;
 }
 
-// NEW: Service configuration for tracking if it's a proprietary service or brokerage
-export interface ServiceConfig {
-  id: string; // Will be the TransferType value (e.g., 'zelle', 'moncash', etc.)
-  transfer_type: TransferType;
-  custom_name?: string; // For 'autre' services
-  is_own_service: boolean; // true = proprietary service (full montant to 706), false = brokerage (only fees to 706)
-  default_fees_percent?: number; // Default fee percentage for this service
-  default_commission_percent?: number; // Default commission percentage
-  created_at: string;
-  updated_at: string;
-}
-
-export interface TypeBalance {
-  digital_balance: number;
-  cash_balance: number;
-}
-
-export type CompanyType =
-  | 'Entreprise Individuelle'
-  | 'Societe Anonyme'
-  | 'Societe par Actions Simplifiee'
-  | 'Societe a Responsabilite Limitee'
-  | 'Organisation Non Gouvernementale'
-  | 'Fondation'
-  | 'Organisation Internationale';
-
-export interface CompanyProfile {
-  id: string;
-  company_type: CompanyType;
-  company_name: string;
-  fiscal_year_start: number;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface ThirdParty {
-  id: string;
-  name: string;
-  type: 'client' | 'supplier';
-  balance: number; // positive = owed to us for clients, positive = we owe for suppliers
-  created_at: string;
-  updated_at?: string;
-  entity_type?: string;
-}
-
-export interface Shareholder {
-  id: string;
-  encrypted_payload?: string; // encrypted { name, percentage }
-  name_hash?: string;
-  created_at: string;
-  updated_at?: string;
-}
-
-export interface Settings {
-  restaurant_name: string;
-  currency_symbol: string;
-  fiscal_year_start: number;
-  language: string;
-  company_type?: CompanyType;
-  transfer_house_enabled?: boolean;
-  exchange_rate?: number;
-  default_transfer_fee?: number;
-  initial_capital?: number;
-}
-
-export interface TaxConfig {
-  id: string;
-  name: string;
-  percentage: number;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
 export interface TaxedTransaction {
   id: string;
   transaction_type: 'sale' | 'operation' | 'transfer';
-  transaction_id: string;
+  transaction_id?: string;
   transaction_date: string;
-  base_amount: number; // Montant HT
+  base_amount: number;
   tax_name: string;
   tax_percentage: number;
-  tax_amount: number; // Montant de la taxe
-  total_with_tax: number; // HT + Taxe
+  tax_amount: number;
+  total_with_tax: number;
   created_at: string;
 }
 
-export interface Account {
-  id: string;
-  code: string; // e.g., 1010, 5120
-  name: string; // e.g., Caisse, Banque
-  type?: 'Actif' | 'Passif' | 'Charge' | 'Produit' | string;
-  description?: string;
-  created_at: string;
-  updated_at?: string;
-}
-
-export interface AccountingEntry {
-  id: string;
-  journal_date: string;
-  transaction_type: string; // sale, operation, transfer, etc.
-  transaction_id?: string;
-  account_code: string;
-  account_name: string;
-  debit: number;
-  credit: number;
-  description?: string;
-  created_at: string;
-}
-
-export interface Supplier {
-  id: string;
-  name: string;
-  amount_owed: number;
-  due_date: string;
-  status: 'active' | 'settled';
-  created_at: string;
-  entity_type?: string;
-  updated_at: string;
-}
-
-// Classe de base de données Dexie
+// --- BASE DE DONNÉES ---
 export class AppDatabase extends Dexie {
   products!: Table<Product>;
   sales!: Table<Sale>;
   transfers!: Table<Transfer>;
   operations!: Table<FinancialOperation>;
-  balances!: Table<Balance>;
-  settings!: Table<Settings>;
-  company_profile!: Table<CompanyProfile>;
-  tax_config!: Table<TaxConfig>;
   taxed_transactions!: Table<TaxedTransaction>;
-  accounts!: Table<Account>;
-  accounting_entries!: Table<AccountingEntry>;
-  tiers!: Table<ThirdParty>;
-  shareholders!: Table<Shareholder>;
-  suppliers!: Table<Supplier>;
-  service_configs!: Table<ServiceConfig>;
+  balances!: Table<Balance>;
+  settings!: Table<any>;
+  company_profile!: Table<any>;
+  tax_config!: Table<any>;
+  accounts!: Table<any>;
+  accounting_entries!: Table<any>;
+  tiers!: Table<any>;
+  shareholders!: Table<any>;
+  suppliers!: Table<any>;
+  service_configs!: Table<any>;
 
   constructor() {
     super('ScarWriteDB');
-    this.version(9).stores({
+    this.version(11).stores({ // Version incrémentée à 11 (force schema update when needed)
       products: 'id, name, is_active, created_at, updated_at, entity_type',
       sales: 'id, product_id, sale_date, created_at, entity_type',
       transfers: 'id, report_number, transfer_type, transfer_date, created_at, entity_type',
-      operations: 'id, operation_number, operation_type, service_name, operation_date, created_at, cash_before, cash_after, digital_before, digital_after, entity_type',
+      operations: 'id, operation_number, operation_type, service_name, operation_date, created_at, entity_type',
+      taxed_transactions: 'id, transaction_date, transaction_type, transaction_id, tax_name, created_at',
       balances: 'id, type, updated_at',
       settings: '++id',
-      company_profile: 'id, company_type, created_at, updated_at',
+      company_profile: 'id, created_at, updated_at',
       tax_config: 'id, name, is_active, created_at, updated_at',
-      taxed_transactions: 'id, transaction_type, transaction_id, transaction_date, tax_name, created_at',
-      accounts: 'id, code, name, created_at, updated_at',
-      accounting_entries: 'id, journal_date, transaction_type, transaction_id, account_code, created_at',
-      tiers: 'id, name, type, created_at, updated_at, entity_type',
-      shareholders: 'id, name_hash, created_at, updated_at',
-      suppliers: 'id, name, status, due_date, created_at, updated_at, entity_type',
-      service_configs: 'id, transfer_type, created_at, updated_at',
+      accounts: 'id, code, name',
+      accounting_entries: 'id, journal_date, transaction_type, transaction_id, account_code',
+      tiers: 'id, name, type, entity_type',
+      shareholders: 'id, created_at',
+      suppliers: 'id, name, status, entity_type',
+      service_configs: 'id, transfer_type',
     });
   }
 }
 
-// Instance de la base de données
 export const db = new AppDatabase();
 
-// Fonctions utilitaires pour la migration depuis localStorage
-export const migrateFromLocalStorage = async () => {
-  try {
-    // Migrer les produits
-    const products = JSON.parse(localStorage.getItem('goutbouche_products') || '[]');
-    if (products.length > 0) {
-      await db.products.bulkAdd(products);
-    }
+// --- FONCTIONS UTILITAIRES ---
 
-    // Migrer les ventes
-    const sales = JSON.parse(localStorage.getItem('goutbouche_sales') || '[]');
-    if (sales.length > 0) {
-      await db.sales.bulkAdd(sales);
-    }
-
-    // Migrer les transferts
-    const transfers = JSON.parse(localStorage.getItem('reporta_transfers') || '[]');
-    if (transfers.length > 0) {
-      await db.transfers.bulkAdd(transfers);
-    }
-
-    // Migrer les opérations
-    const operations = JSON.parse(localStorage.getItem('reporta_operations') || '[]');
-    if (operations.length > 0) {
-      await db.operations.bulkAdd(operations);
-    }
-
-    // Migrer les balances
-    const balances = JSON.parse(localStorage.getItem('reporta_balances') || '[]');
-    if (balances.length > 0) {
-      await db.balances.bulkAdd(balances);
-    }
-
-    // Migrer les settings
-    const settings = JSON.parse(localStorage.getItem('goutbouche_settings') || null);
-    if (settings) {
-      await db.settings.add(settings);
-    }
-
-    console.log('Migration depuis localStorage terminée');
-  } catch (error) {
-    console.error('Erreur lors de la migration:', error);
-  }
-};
-
-// Initialiser la base de données et migrer si nécessaire
 export const initDatabase = async () => {
   try {
-    await db.open();
-    // Vérifier si la migration est nécessaire
-    const productCount = await db.products.count();
-    if (productCount === 0) {
-      await migrateFromLocalStorage();
+    if (!db.isOpen()) {
+      await db.open();
     }
   } catch (error) {
-    console.error('Erreur lors de l\'initialisation de la base de données:', error);
+    console.error("Erreur initialisation DB:", error);
   }
 };
 
-// Fonction pour récupérer le dernier état d'un service
+// Ensure minimal seeded data (balances) exists for transfer services
+export const seedDefaultBalances = async () => {
+  try {
+    if (!db.isOpen()) await db.open();
+    const count = await db.balances.count();
+    if (count === 0) {
+      const now = new Date().toISOString();
+      const defaults = [
+        { id: 'balance_cash', type: 'cash', amount: 0, updated_at: now },
+        { id: 'balance_zelle', type: 'digital', amount: 0, updated_at: now },
+        { id: 'balance_moncash', type: 'digital', amount: 0, updated_at: now },
+        { id: 'balance_natcash', type: 'digital', amount: 0, updated_at: now },
+        { id: 'balance_western_union', type: 'digital', amount: 0, updated_at: now },
+        { id: 'balance_moneygram', type: 'digital', amount: 0, updated_at: now },
+        { id: 'balance_autre', type: 'digital', amount: 0, updated_at: now },
+      ];
+      await db.balances.bulkAdd(defaults as any);
+      console.log('Balances initialisées par défaut.');
+    }
+  } catch (err) {
+    console.warn('seedDefaultBalances failed:', err);
+  }
+};
+
+// Run seed after DB open
+seedDefaultBalances().catch(() => {});
+
+// --- FONCTIONS POUR TRANSFERTFORM ---
+
+export const getNextReportNumber = async (): Promise<number> => {
+  const count = await db.transfers.count();
+  return count + 1;
+};
+
+export const getCurrentBalancesForService = async (serviceName: TransferType, customName?: string) => {
+  const ops = await db.operations
+    .where('service_name')
+    .equals(serviceName)
+    .reverse()
+    .sortBy('created_at');
+
+  const relevantOp = customName 
+    ? ops.find(op => op.custom_service_name === customName)
+    : ops[0];
+
+  if (relevantOp) {
+    return { cash: relevantOp.cash_after, digital: relevantOp.digital_after };
+  }
+  return { cash: 0, digital: 0 };
+};
+
+export const addTransfer = async (data: any) => {
+  return await db.transfers.add({
+    id: crypto.randomUUID(),
+    ...data,
+    created_at: new Date().toISOString()
+  });
+};
+
+// Convenience helper: save a transfer record AND execute the corresponding
+// financial transaction that updates `operations` and `balances`.
+export const addTransferWithTransaction = async (data: any, transactionOverride?: any) => {
+  try {
+    // 1) persist the transfer (report/receipt record)
+    const transferId = await addTransfer(data);
+
+    // 2) build transaction payload for executeFinancialTransaction
+    const transactionPayload: any = {
+      operation_type: transactionOverride?.operation_type || (data.operation_type || 'transfer'),
+      service_name: transactionOverride?.service_name || data.transfer_type,
+      custom_service_name: transactionOverride?.custom_service_name || data.custom_type_name,
+      amount_gourdes: Number(transactionOverride?.amount_gourdes ?? data.amount_gourdes ?? data.amount_gdes ?? 0),
+      fees: Number(transactionOverride?.fees ?? data.transfer_fee ?? data.fees ?? 0),
+      commission: Number(transactionOverride?.commission ?? data.commission ?? 0),
+      sender_name: data.sender_name,
+      sender_phone: data.sender_phone,
+      receiver_name: data.receiver_name,
+      receiver_phone: data.receiver_phone,
+      operation_date: data.transfer_date || new Date().toISOString(),
+    };
+
+    // 3) execute the financial side (this updates balances and creates an operation)
+    const operation = await executeFinancialTransaction(transactionPayload);
+
+    return { transferId, operation };
+  } catch (err) {
+    console.error('addTransferWithTransaction failed:', err);
+    throw err;
+  }
+};
+
+export const updateTransfer = async (id: string, data: Partial<Transfer>) => {
+  return await db.transfers.update(id, data);
+};
+
+export const parseDecimalInput = (val: string | number): number => {
+  if (!val) return 0;
+  const num = typeof val === 'string' ? parseFloat(val.replace(',', '.')) : val;
+  return isNaN(num) ? 0 : num;
+};
+
+// --- LOGIQUE FINANCIÈRE ---
+
+const getNextOperationNumber = async (): Promise<number> => {
+  const count = await db.operations.count();
+  return count + 1;
+};
+
 export const getLastOperationForService = async (serviceName: TransferType): Promise<FinancialOperation | null> => {
-  try {
-    const operations = await db.operations
-      .where('service_name')
-      .equals(serviceName)
-      .reverse()
-      .sortBy('created_at');
-
-    return operations.length > 0 ? operations[0] : null;
-  } catch (error) {
-    console.error('Erreur récupération dernière opération:', error);
-    return null;
-  }
+  const ops = await db.operations.where('service_name').equals(serviceName).reverse().sortBy('created_at');
+  return ops.length > 0 ? ops[0] : null;
 };
 
-// Fonction pour exécuter une transaction avec calcul des soldes
-export const executeFinancialTransaction = async (transactionData: {
-  operation_type: OperationType;
-  service_name: TransferType;
-  custom_service_name?: string;
-  operation_date: string;
-  sender_name?: string;
-  sender_phone?: string;
-  receiver_name?: string;
-  receiver_phone?: string;
-  amount_gdes: number;
-  amount_usd?: number;
-  exchange_rate?: number;
-  fees?: number;
-  commission?: number;
-  notes?: string;
-}): Promise<FinancialOperation> => {
+export const executeFinancialTransaction = async (transactionData: any): Promise<FinancialOperation> => {
   try {
-    // CORRECTION: Read from localStorage first (manual pre-registered balances take priority)
-    // Then fallback to last operation in DB
-    let cashBefore = 0;
-    let digitalBefore = 0;
-    
-    try {
-      const key = transactionData.custom_service_name 
-        ? `${transactionData.service_name}_${transactionData.custom_service_name}`
-        : transactionData.service_name;
-      const stored = localStorage.getItem(`balance_${key}`);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        cashBefore = parsed.cash_balance ?? 0;
-        digitalBefore = parsed.digital_balance ?? 0;
-        console.log(`[executeFinancialTransaction] Read from localStorage:`, { cashBefore, digitalBefore });
-      }
-    } catch (e) {
-      console.log(`[executeFinancialTransaction] Could not read from localStorage, trying DB...`);
-    }
-    
-    // If localStorage balance is still 0/0, try to get last operation from DB as fallback
-    if (cashBefore === 0 && digitalBefore === 0) {
-      const lastOperation = await getLastOperationForService(transactionData.service_name);
-      if (lastOperation) {
-        cashBefore = lastOperation.cash_after ?? 0;
-        digitalBefore = lastOperation.digital_after ?? 0;
-        console.log(`[executeFinancialTransaction] Read from last DB operation:`, { cashBefore, digitalBefore, lastOp: lastOperation.id });
-      }
-    }
-    
-    console.log(`[executeFinancialTransaction] START for ${transactionData.operation_type}/${transactionData.service_name}:`, 
-      { cashBefore, digitalBefore });
+    const balances = await getCurrentBalancesForService(transactionData.service_name, transactionData.custom_service_name);
+    let cashBefore = balances.cash;
+    let digitalBefore = balances.digital;
 
-    // 2. Calculer les "After" selon les règles
     let cashAfter = cashBefore;
     let digitalAfter = digitalBefore;
-
-    const { operation_type, amount_gdes, fees = 0, commission = 0 } = transactionData;
-
-    switch (operation_type) {
-      case 'deposit':
-        // DÉPÔT : 
-        // Cash = Cash Before + Montant + Frais (vous encaissez l'argent physique + les frais)
-        // Digital = Digital Before - Montant + Commission (vous envoyez le montant, gagnez la commission)
-        cashAfter = cashBefore + amount_gdes + fees;
-        digitalAfter = digitalBefore - amount_gdes + commission;
-        break;
-
-      case 'withdrawal':
-        // RETRAIT : 
-        // Cash = Cash Before - Montant (vous donnez l'argent au client)
-        // Digital = Digital Before + Montant + Frais + Commission (vous recevez tout dans votre compte)
-        cashAfter = cashBefore - amount_gdes;
-        digitalAfter = digitalBefore + amount_gdes + fees + commission;
-        break;
-
-      case 'transfer':
-        // TRANSFERT : Même logique que le DÉPÔT
-        // Cash = Cash Before + Montant + Frais
-        // Digital = Digital Before - Montant + Commission
-        cashAfter = cashBefore + amount_gdes + fees;
-        digitalAfter = digitalBefore - amount_gdes + commission;
-        break;
-    }
     
-    console.log(`[executeFinancialTransaction] Calculated After:`, { 
-      operation: operation_type, 
-      amount: amount_gdes, 
-      fees, 
-      commission,
-      cashAfter, 
-      digitalAfter 
-    });
+    const amount = Number(transactionData.amount_gdes || transactionData.amount_gourdes || 0);
+    const fees = Number(transactionData.fees || 0);
+    const commission = Number(transactionData.commission || 0);
 
-    // 3. Créer la nouvelle opération
-    const operationNumber = await getNextOperationNumber();
+    if (transactionData.operation_type === 'deposit' || transactionData.operation_type === 'transfer') {
+      cashAfter = cashBefore + amount + fees + commission;
+      digitalAfter = digitalBefore - amount + commission;
+    } else if (transactionData.operation_type === 'withdrawal') {
+      cashAfter = cashBefore - amount;
+      digitalAfter = digitalBefore + amount + fees + commission;
+    }
+
+    const nextNum = await getNextOperationNumber();
 
     const newOperation: FinancialOperation = {
       id: crypto.randomUUID(),
-      operation_number: operationNumber,
-      operation_type: transactionData.operation_type,
-      service_name: transactionData.service_name,
-      custom_service_name: transactionData.custom_service_name,
-      operation_date: transactionData.operation_date,
-      sender_name: transactionData.sender_name,
-      sender_phone: transactionData.sender_phone,
-      receiver_name: transactionData.receiver_name,
-      receiver_phone: transactionData.receiver_phone,
-      amount_gdes: transactionData.amount_gdes,
-      amount_usd: transactionData.amount_usd,
-      exchange_rate: transactionData.exchange_rate,
-      fees: transactionData.fees,
-      commission: transactionData.commission,
+      operation_number: nextNum,
+      ...transactionData,
+      amount_gdes: amount,
+      amount_gourdes: amount,
+      fees: fees,
+      commission: commission,
       cash_before: cashBefore,
       cash_after: cashAfter,
       digital_before: digitalBefore,
       digital_after: digitalAfter,
-      notes: transactionData.notes,
       created_at: new Date().toISOString(),
     };
 
-    // 4. Insérer dans la base de données
-    // Attach entity_type from localStorage active entity when available
+    // Persist per-account balances so UI showing global cash/digital balances updates immediately
     try {
-      const activeEntity = (typeof window !== 'undefined') ? localStorage.getItem('scarwrite_active_entity') : null;
-      if (activeEntity) {
-        (newOperation as any).entity_type = activeEntity;
-      }
-    } catch (e) {
-      // ignore localStorage issues
+      // cash stored under id 'balance_cash'
+      await db.balances.put({ id: 'balance_cash', type: 'cash', amount: cashAfter, updated_at: new Date().toISOString() } as any);
+
+      // map service to a digital balance id
+      const digitalKeyMap: Record<string, string> = {
+        moncash: 'balance_moncash',
+        natcash: 'balance_natcash',
+        zelle: 'balance_zelle',
+        western_union: 'balance_western_union',
+        moneygram: 'balance_moneygram',
+        cam_transfert: 'balance_autre',
+        autre: 'balance_autre'
+      } as any;
+      const digitalId = digitalKeyMap[transactionData.service_name] || 'balance_autre';
+      await db.balances.put({ id: digitalId, type: 'digital', amount: digitalAfter, updated_at: new Date().toISOString() } as any);
+    } catch (balanceErr) {
+      console.warn('Could not update balances table:', balanceErr);
     }
 
     await db.operations.add(newOperation);
-    
-    console.log(`[executeFinancialTransaction] CREATED operation:`, { 
-      id: newOperation.id, 
-      cashBefore, cashAfter, 
-      digitalBefore, digitalAfter 
-    });
-
     return newOperation;
-
   } catch (error) {
-    console.error('Erreur exécution transaction:', error);
+    console.error('Erreur transaction:', error);
     throw error;
   }
 };
 
-// Fonction utilitaire pour obtenir le prochain numéro d'opération
-const getNextOperationNumber = async (): Promise<number> => {
-  try {
-    const operations = await db.operations.toArray();
-    const maxNumber = operations.length > 0 ? Math.max(...operations.map(op => op.operation_number)) : 0;
-    return maxNumber + 1;
-  } catch (error) {
-    console.error('Erreur récupération numéro opération:', error);
-    return 1;
+// Fonction comptable (statique pour éviter les erreurs de compilation)
+export const createAccountingTransaction = async (entries: any[]) => {
+  for (const entry of entries) {
+    await db.accounting_entries.add({
+      id: crypto.randomUUID(),
+      ...entry,
+      created_at: new Date().toISOString()
+    });
   }
 };

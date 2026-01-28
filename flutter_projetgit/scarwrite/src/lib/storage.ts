@@ -1,4 +1,4 @@
-import { db, initDatabase, executeFinancialTransaction, getLastOperationForService } from './database';
+import { db, initDatabase, executeFinancialTransaction, getLastOperationForService, addTransferWithTransaction } from './database';
 import type { Product, Sale, Transfer, TransferType, FinancialOperation, OperationType, Balance, TypeBalance, Settings, CompanyType, CompanyProfile, TaxConfig, TaxedTransaction, Account, AccountingEntry, ThirdParty, ServiceConfig } from './database';
 import CryptoJS from 'crypto-js';
 
@@ -179,12 +179,13 @@ const decryptObject = (cipher: string): unknown | null => {
     if (!text) return null;
     return JSON.parse(text);
   } catch (err) {
-    console.error('decryptObject error', err);
+    console.error('decryptObject error:', err);
+    // Fallback: return null on any decrypt error
     return null;
   }
 };
 
-export { Product, Sale, Transfer, TransferType, FinancialOperation, OperationType, Balance, TypeBalance, CompanyType, CompanyProfile, TaxConfig, TaxedTransaction };
+export { Product, Sale, Transfer, TransferType, FinancialOperation, OperationType, Balance, TypeBalance, CompanyType, CompanyProfile, TaxConfig, TaxedTransaction, addTransferWithTransaction };
 
 // PIN functions (toujours localStorage pour la sécurité)
 export const getPIN = (): string | null => {
@@ -558,6 +559,17 @@ export const addSale = async (
   };
 
   try {
+    // Idempotency: avoid duplicate sales when user clicks twice
+    try {
+      const existingOnDate = await db.sales.where('sale_date').equals(date).toArray();
+      const dup = existingOnDate.find(s => s.product_id === productId && s.quantity === quantity && Math.abs((s.total || 0) - base) < 0.01 && ((s.client_name || '') === (clientName || '')));
+      if (dup && dup.id) {
+        console.log('[addSale] Duplicate sale detected, returning existing id:', dup.id);
+        return dup.id;
+      }
+    } catch (dupErr) {
+      console.warn('addSale duplicate detection failed:', dupErr);
+    }
     (sale as any).entity_type = getActiveEntity();
     await db.sales.add(sale);
 
@@ -719,6 +731,7 @@ export const addSale = async (
     console.error('Erreur ajout vente:', error);
     throw error;
   }
+  return saleId;
 };
 
 export const deleteSale = async (id: string): Promise<boolean> => {
@@ -820,7 +833,8 @@ export const addMissionReport = async (data: {
     transfer_type: 'autre' as TransferType,
     custom_type_name: data.custom_type_name || 'mission',
     transfer_date: data.transfer_date,
-    amount: data.amount,
+    amount_gourdes: data.amount,
+    transfer_fee: 0,
     notes: JSON.stringify({ beneficiaries: data.beneficiaries, notes: data.notes }),
   };
 
@@ -886,7 +900,8 @@ export const addOperation = async (operation: Omit<{
   sender_phone?: string;
   receiver_name?: string;
   receiver_phone?: string;
-  amount_gdes: number;
+  amount_gdes?: number;
+  amount_gourdes?: number;
   amount_usd?: number;
   exchange_rate?: number;
   fees?: number;
@@ -895,6 +910,24 @@ export const addOperation = async (operation: Omit<{
 }, 'id' | 'created_at'>): Promise<import("./database").FinancialOperation> => {
   // Business rule: Create accounting entries for every operation
   try {
+    // Idempotency check: if an operation with the same key fields already exists, return it
+    try {
+      const opsOnDate = await db.operations.where('operation_date').equals(operation.operation_date).toArray();
+      const found = opsOnDate.find(op => {
+        const opAmt = Number((op as any).amount_gourdes ?? (op as any).amount_gdes ?? 0);
+        const inAmt = Number(operation.amount_gdes ?? operation.amount_gourdes ?? 0);
+        const feesMatch = Number((op as any).fees ?? 0) === Number(operation.fees ?? 0);
+        const commMatch = Number((op as any).commission ?? 0) === Number(operation.commission ?? 0);
+        const serviceMatch = op.service_name === operation.service_name && (op.custom_service_name || '') === (operation.custom_service_name || '');
+        return serviceMatch && Math.abs(opAmt - inAmt) < 0.01 && feesMatch && commMatch;
+      });
+      if (found) {
+        console.log('[addOperation] Duplicate operation detected, returning existing operation', found.id);
+        return found as any;
+      }
+    } catch (dupCheckErr) {
+      console.warn('addOperation duplicate detection failed:', dupCheckErr);
+    }
     const today = operation.operation_date || new Date().toISOString().slice(0,10);
     const principal = Number.isFinite(operation.amount_gdes) ? operation.amount_gdes : 0;
     const fees = Number.isFinite(operation.fees) ? operation.fees : 0;
@@ -1152,6 +1185,7 @@ export const getOperationsByService = async (serviceName: TransferType): Promise
 
 export const getOperationsByDateRange = async (startDate: string, endDate: string): Promise<FinancialOperation[]> => {
   try {
+    if (!startDate || !endDate) return [];
     return await db.operations
       .where('operation_date')
       .between(startDate, endDate, true, true)
@@ -1359,7 +1393,7 @@ export const formatCurrency = (amount: number, symbol: string = 'G'): string => 
 export const getDatesWithTransfers = async (): Promise<string[]> => {
   try {
     const transfers = await db.transfers.toArray();
-    const dates = [...new Set(transfers.map(t => t.transfer_date))];
+    const dates = [...new Set(transfers.filter(t => t && t.transfer_date).map(t => t.transfer_date))];
     return dates.sort();
   } catch (error) {
     console.error('Erreur récupération dates avec transferts:', error);
@@ -1369,6 +1403,7 @@ export const getDatesWithTransfers = async (): Promise<string[]> => {
 
 export const getTransfersByDate = async (date: string): Promise<Transfer[]> => {
   try {
+    if (!date) return [];
     return await db.transfers.where('transfer_date').equals(date).toArray();
   } catch (error) {
     console.error('Erreur récupération transferts par date:', error);
@@ -1378,10 +1413,13 @@ export const getTransfersByDate = async (date: string): Promise<Transfer[]> => {
 
 export const getTransfersByMonth = async (year: number, month: number): Promise<Transfer[]> => {
   try {
-    return await db.transfers.filter(transfer => {
+    const all = await db.transfers.toArray();
+    // sanitize and filter valid dates
+    const valid = all.filter(t => t && t.transfer_date && !isNaN(Date.parse(t.transfer_date)));
+    return valid.filter(transfer => {
       const transferDate = new Date(transfer.transfer_date);
       return transferDate.getFullYear() === year && transferDate.getMonth() === month - 1;
-    }).toArray();
+    });
   } catch (error) {
     console.error('Erreur récupération transferts par mois:', error);
     return [];
@@ -1390,12 +1428,12 @@ export const getTransfersByMonth = async (year: number, month: number): Promise<
 
 export const getMonthlyTransferRevenue = async (year: number, month: number): Promise<number> => {
   const transfers = await getTransfersByMonth(year, month);
-  return transfers.reduce((sum, t) => sum + t.amount, 0);
+  return transfers.reduce((sum, t) => sum + (Number.isFinite((t as any).amount_gourdes) ? (t as any).amount_gourdes : (Number.isFinite((t as any).amount) ? (t as any).amount : 0)), 0);
 };
 
 export const getDailyTransferRevenue = async (date: string): Promise<number> => {
   const transfers = await getTransfersByDate(date);
-  return transfers.reduce((sum, t) => sum + t.amount, 0);
+  return transfers.reduce((sum, t) => sum + (Number.isFinite((t as any).amount_gourdes) ? (t as any).amount_gourdes : (Number.isFinite((t as any).amount) ? (t as any).amount : 0)), 0);
 };
 
 export const getFiscalYearTransferRevenue = async (startYear: number): Promise<number> => {
@@ -1403,11 +1441,13 @@ export const getFiscalYearTransferRevenue = async (startYear: number): Promise<n
   const endDate = new Date(startYear + 1, 8, 30); // September 30
 
   try {
-    const transfers = await db.transfers.filter(transfer => {
+    const all = await db.transfers.toArray();
+    const valid = all.filter(t => t && t.transfer_date && !isNaN(Date.parse(t.transfer_date)));
+    const inPeriod = valid.filter(transfer => {
       const transferDate = new Date(transfer.transfer_date);
       return transferDate >= startDate && transferDate <= endDate;
-    }).toArray();
-    return transfers.reduce((sum, t) => sum + t.amount, 0);
+    });
+    return inPeriod.reduce((sum, t) => sum + (Number.isFinite((t as any).amount_gourdes) ? (t as any).amount_gourdes : (Number.isFinite((t as any).amount) ? (t as any).amount : 0)), 0);
   } catch (error) {
     console.error('Erreur récupération revenus transferts année fiscale:', error);
     return 0;
@@ -1416,11 +1456,26 @@ export const getFiscalYearTransferRevenue = async (startYear: number): Promise<n
 
 export const getTransferDailyTotals = async (year: number, month: number): Promise<Array<{ date: string; total: number; dayName: string; dayNum: number }>> => {
   const transfers = await getTransfersByMonth(year, month);
-  const transfersByDate = transfers.reduce((acc, transfer) => {
+  // normalize: filter invalid dates and amounts, dedupe by composite key to avoid double entries
+  const normalized: Transfer[] = [];
+  const seen = new Set<string>();
+  for (const tr of transfers) {
+    if (!tr || !tr.transfer_date || isNaN(Date.parse(tr.transfer_date))) continue;
+    const amt = Number.isFinite((tr as any).amount_gourdes) ? (tr as any).amount_gourdes : (Number.isFinite((tr as any).amount) ? (tr as any).amount : 0);
+    if (!Number.isFinite(amt)) continue;
+    const key = `${tr.transfer_date}|${(tr as any).report_number || ''}|${amt}|${tr.transfer_type || ''}|${tr.sender_name||''}|${tr.receiver_name||''}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    // ensure amount_gourdes property exists for reporting
+    (tr as any).amount_gourdes = amt;
+    normalized.push(tr);
+  }
+
+  const transfersByDate = normalized.reduce((acc, transfer) => {
     if (!acc[transfer.transfer_date]) {
       acc[transfer.transfer_date] = 0;
     }
-    acc[transfer.transfer_date] += transfer.amount;
+    acc[transfer.transfer_date] += (transfer as any).amount_gourdes || 0;
     return acc;
   }, {} as Record<string, number>);
 
@@ -1524,7 +1579,9 @@ export const importAllData = async (jsonData: string): Promise<void> => {
 // Tax Management Functions
 export const getTaxConfigs = async (): Promise<TaxConfig[]> => {
   try {
-    return await db.tax_config.where('is_active').equals(true).toArray();
+    // Defensive: table may be missing in older DB instances; guard and return empty
+    if (!(db as any).tax_config) return [];
+    return await db.tax_config.filter((t: any) => t && (t.is_active || t.isActive || t.active)).toArray() as TaxConfig[];
   } catch (error) {
     console.error('Erreur récupération taxes:', error);
     return [];
@@ -1743,9 +1800,9 @@ export const addOrUpdateThirdParty = async (name: string, type: 'client' | 'supp
 
     const payload = { name, balance: delta };
     const encrypted = encryptObject(payload);
-    const newTp = { id: crypto.randomUUID(), name_hash: nameHash, type, balance: delta, created_at: now, encrypted_payload: encrypted } as StoredThirdParty;
+    const newTp = { id: crypto.randomUUID(), name, name_hash: nameHash, type, balance: delta, created_at: now, updated_at: now, encrypted_payload: encrypted } as StoredThirdParty;
     await db.tiers.add(newTp);
-    return { id: newTp.id, name, type: newTp.type, balance: delta, created_at: now } as ThirdParty;
+    return { id: newTp.id, name, type: newTp.type, balance: delta, created_at: now, updated_at: now } as ThirdParty;
   } catch (err) {
     console.error('Erreur addOrUpdateThirdParty:', err);
     throw err;
@@ -1861,6 +1918,7 @@ export const clearShareholders = async (): Promise<void> => {
 
 export const getTaxedTransactionsByDate = async (startDate: string, endDate: string): Promise<TaxedTransaction[]> => {
   try {
+    if (!startDate || !endDate) return [];
     return await db.taxed_transactions
       .where('transaction_date')
       .between(startDate, endDate)
@@ -1874,8 +1932,9 @@ export const getTaxedTransactionsByDate = async (startDate: string, endDate: str
 export const getTaxedTransactionsByMonth = async (year: number, month: number): Promise<TaxedTransaction[]> => {
   try {
     return await db.taxed_transactions.filter(t => {
-      const date = new Date(t.transaction_date);
-      return date.getFullYear() === year && date.getMonth() === month - 1;
+      if (!t || !t.transaction_date) return false;
+      const d = new Date(t.transaction_date);
+      return d.getFullYear() === year && d.getMonth() === month - 1;
     }).toArray();
   } catch (error) {
     console.error('Erreur récupération transactions fiscales par mois:', error);
@@ -1900,8 +1959,9 @@ export const getTaxSummaryByMonth = async (year: number, month: number): Promise
 export const getTaxSummaryByYear = async (year: number): Promise<Record<string, number>> => {
   try {
     const transactions = await db.taxed_transactions.filter(t => {
-      const date = new Date(t.transaction_date);
-      return date.getFullYear() === year;
+      if (!t || !t.transaction_date) return false;
+      const d = new Date(t.transaction_date);
+      return d.getFullYear() === year;
     }).toArray();
 
     const summary: Record<string, number> = {};
@@ -2033,8 +2093,11 @@ export const getProfitAndLoss = async (startDate: string, endDate: string): Prom
       }
     });
 
-    // Taxes collected from taxed_transactions in period
-    const taxed = await db.taxed_transactions.filter(t => t.transaction_date >= startDate && t.transaction_date <= endDate).toArray();
+    // Taxes collected from taxed_transactions in period (guard dates)
+    let taxed: TaxedTransaction[] = [];
+    if (startDate && endDate) {
+      taxed = await db.taxed_transactions.filter(t => t && t.transaction_date && t.transaction_date >= startDate && t.transaction_date <= endDate).toArray();
+    }
     const taxes = taxed.reduce((s, t) => s + (t.tax_amount || 0), 0);
 
     const net = Math.round((revenues - expenses - taxes) * 100) / 100;
@@ -2047,18 +2110,7 @@ export const getProfitAndLoss = async (startDate: string, endDate: string): Prom
 
 // Dynamic P&L that aggregates sales (products + services) and fees/commissions,
 // applies active tax configurations to sales, and computes shareholder distributions.
-export const getDynamicProfitAndLoss = async (startDate: string, endDate: string): Promise<{
-  revenuesProducts: number;
-  revenuesServices: number;
-  feesAndCommissions: number;
-  totalRevenues: number;
-  expenses: number;
-  taxes: number;
-  netBeforeTaxes: number;
-  netAfterTaxes: number;
-  dividendsDistributed: number;
-  shareholderAllocations: Array<{ name: string; percentage: number; amount: number }>;
-}> => {
+export const getDynamicProfitAndLoss = async (startDate: string, endDate: string): Promise<any> => {
   try {
     // 1) Aggregate journal entries for revenue/fees/expenses
     const entries = await getJournalEntriesByDate(startDate, endDate);
@@ -2210,7 +2262,7 @@ export const getDynamicProfitAndLoss = async (startDate: string, endDate: string
 };
 
 // Balance Sheet as of a date: aggregate trial balance up to that date into Assets and Liabilities
-export const getBalanceSheet = async (asOfDate: string): Promise<{ assets: number; liabilities: number; equity: number; breakdown: { [key: string]: number } }> => {
+export const getBalanceSheet = async (asOfDate: string): Promise<any> => {
   try {
     // Get entries up to date (inclusive)
     const rows: StoredAccountingEntry[] = await db.accounting_entries.where('journal_date').belowOrEqual(asOfDate).toArray();

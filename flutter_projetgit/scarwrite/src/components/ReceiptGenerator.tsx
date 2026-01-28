@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import jsPDF from 'jspdf';
-import { Printer } from "@/lib/lucide-react";
+import { FileText } from "@/lib/lucide-react";
 import { getSettings } from "@/lib/storage";
 
 interface ReceiptData {
@@ -12,6 +12,7 @@ interface ReceiptData {
   serviceType: string; // Zelle, MonCash, NatCash, etc.
   principalAmount: number;
   fees: number;
+  commission?: number;
   senderName?: string;
   receiverName?: string;
   description?: string;
@@ -29,7 +30,7 @@ export function ReceiptGenerator({ data, autoDownload }: ReceiptGeneratorProps) 
   const settings = getSettings();
 
   const isWithdrawal = data.operationType.toLowerCase() === 'retrait';
-  const totalAmount = isWithdrawal ? data.fees : (data.principalAmount + data.fees);
+  const totalAmount = isWithdrawal ? (data.fees + (data.commission || 0)) : (data.principalAmount + data.fees + (data.commission || 0));
 
   const formatCurrency = (amount: number): string => {
     const formatted = amount.toLocaleString('fr-FR', { 
@@ -185,6 +186,7 @@ export function ReceiptGenerator({ data, autoDownload }: ReceiptGeneratorProps) 
 
       const principalAmountStr = formatCurrency(data.principalAmount);
       const feesAmountStr = formatCurrency(data.fees);
+      const commissionAmountStr = formatCurrency(data.commission || 0);
       // Compute total according to operation type rules:
       // DEPOT / TRANSFERT: client pays principal + fees
       // RETRAIT: client receives principal but only pays fees (so amount due = fees)
@@ -199,8 +201,13 @@ export function ReceiptGenerator({ data, autoDownload }: ReceiptGeneratorProps) 
 
       // Fees
       if (data.fees > 0) {
-        doc.text('Frais / Commission (706)', margin, yPosition);
+        doc.text('Frais (706)', margin, yPosition);
         doc.text(feesAmountStr, margin + col1Width, yPosition, { align: 'right' });
+        yPosition += 6;
+      }
+      if ((data.commission || 0) > 0) {
+        doc.text('Commission (706)', margin, yPosition);
+        doc.text(commissionAmountStr, margin + col1Width, yPosition, { align: 'right' });
         yPosition += 6;
       }
 
@@ -256,7 +263,7 @@ export function ReceiptGenerator({ data, autoDownload }: ReceiptGeneratorProps) 
         className="bg-blue-600 text-white hover:bg-blue-700 hover:scale-[1.02] transition-transform cursor-pointer font-semibold flex items-center gap-2 min-h-10 px-4"
         title="Générer et télécharger le reçu PDF"
       >
-        <Printer className="h-5 w-5" />
+        <FileText className="h-5 w-5" />
         <span>Générer Reçu PDF</span>
       </Button>
 
@@ -294,6 +301,12 @@ export function ReceiptGenerator({ data, autoDownload }: ReceiptGeneratorProps) 
                 <div className="flex justify-between">
                   <span className="text-black">Frais / Commission:</span>
                   <span className="font-bold text-black">{formatCurrency(data.fees)}</span>
+                </div>
+              )}
+              {(data.commission || 0) > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-black">Commission:</span>
+                  <span className="font-bold text-black">{formatCurrency(data.commission || 0)}</span>
                 </div>
               )}
               <div className="flex justify-between border-t border-gray-300 pt-2 mt-2 font-bold">

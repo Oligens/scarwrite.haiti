@@ -12,7 +12,8 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 // icons replaced by inline image
-import { getActiveProducts, addSale, getSettings, Product, parseDecimalInput, updateProduct, getTaxConfigs, recordTaxedTransaction, addOrUpdateThirdParty, TaxConfig, TransferType } from "@/lib/storage";
+import { getActiveProducts, addSale, getSettings, Product, parseDecimalInput, updateProduct, getTaxConfigs, recordTaxedTransaction, addOrUpdateThirdParty, getSaleById, TaxConfig, TransferType } from "@/lib/storage";
+import { generateClientReceiptFromSale } from '@/lib/pdf';
 
 interface SalesFormProps {
   date: string;
@@ -31,6 +32,9 @@ export function SalesForm({ date, onClose, onSuccess }: SalesFormProps) {
   const [paidAmount, setPaidAmount] = useState<string>('0');
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmitted, setIsSubmitted] = useState(false);
+  const [savedSaleId, setSavedSaleId] = useState<string | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<'cash'|'digital'>('cash');
   const [paymentService, setPaymentService] = useState<TransferType | undefined>(undefined);
   const [serviceFeePercent, setServiceFeePercent] = useState<number>(0);
@@ -85,6 +89,21 @@ export function SalesForm({ date, onClose, onSuccess }: SalesFormProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (isSubmitted && savedSaleId) {
+      // If already submitted, clicking the action should only generate receipt
+      try {
+        const sale = await getSaleById(savedSaleId);
+        if (sale) {
+          const doc = generateClientReceiptFromSale(sale as any);
+          // jsPDF save is done in generator
+        }
+      } catch (err) {
+        console.error('Erreur génération reçu:', err);
+        toast({ title: 'Erreur', description: "Impossible de générer le reçu", variant: 'destructive' });
+      }
+      return;
+    }
+
     if (!selectedProduct || quantity < 1 || !selectedProductData) {
       toast({
         title: "Erreur",
@@ -104,6 +123,7 @@ export function SalesForm({ date, onClose, onSuccess }: SalesFormProps) {
     }
 
     try {
+      setIsSubmitting(true);
       // If credit, require client name
       if (isCredit && !clientName.trim()) {
         toast({ title: 'Erreur', description: 'Nom du client requis pour vente à crédit', variant: 'destructive' });
@@ -156,6 +176,9 @@ export function SalesForm({ date, onClose, onSuccess }: SalesFormProps) {
       } else {
         toast({ title: "Vente enregistrée", description: `${selectedProductData.name} (service) enregistré` });
       }
+      // mark submitted so subsequent clicks don't re-run financial logic
+      setIsSubmitted(true);
+      setSavedSaleId(saleId);
       onSuccess();
     } catch (error) {
       console.error('Erreur ajout vente:', error);
@@ -165,6 +188,7 @@ export function SalesForm({ date, onClose, onSuccess }: SalesFormProps) {
         variant: "destructive",
       });
     }
+      setIsSubmitting(false);
   };
 
   const formatCurrency = (amount: number) =>
@@ -361,14 +385,34 @@ export function SalesForm({ date, onClose, onSuccess }: SalesFormProps) {
 
             </div>
             <div className="mt-4">
-              <Button
-                type="submit"
-                form="sales-form"
-                disabled={!selectedProduct || (selectedProductData && !selectedProductData.is_service && quantity > quantityAvailable)}
-                className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
-              >
-                Enregistrer la vente
-              </Button>
+                {!isSubmitted ? (
+                  <Button
+                    type="submit"
+                    form="sales-form"
+                    disabled={isSubmitting || !selectedProduct || (selectedProductData && !selectedProductData.is_service && quantity > quantityAvailable)}
+                    className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
+                  >
+                    {isSubmitting ? 'Enregistrement...' : 'Enregistrer la vente'}
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        if (savedSaleId) {
+                          const sale = await getSaleById(savedSaleId);
+                          if (sale) generateClientReceiptFromSale(sale as any);
+                        }
+                      } catch (err) {
+                        console.error('Erreur génération reçu:', err);
+                        toast({ title: 'Erreur', description: "Impossible de générer le reçu", variant: 'destructive' });
+                      }
+                    }}
+                    className="w-full bg-emerald-600 text-white hover:bg-emerald-700"
+                  >
+                    Générer le reçu
+                  </Button>
+                )}
             </div>
           </form>
         )}

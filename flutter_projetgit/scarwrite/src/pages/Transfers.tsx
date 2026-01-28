@@ -483,20 +483,20 @@ export default function Transfers() {
                     </div>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                       <div>
-                        <span className="text-muted-foreground">Expéditeur:</span>
-                        <p className="font-medium">{operation.sender_name || '-'}</p>
+                        <span className="text-black font-semibold">Expéditeur:</span>
+                        <p className="font-bold text-black">{operation.sender_name || '-'}</p>
                       </div>
                       <div>
-                        <span className="text-muted-foreground">Bénéficiaire:</span>
-                        <p className="font-medium">{operation.receiver_name || '-'}</p>
+                        <span className="text-black font-semibold">Bénéficiaire:</span>
+                        <p className="font-bold text-black">{operation.receiver_name || '-'}</p>
                       </div>
                       <div>
-                        <span className="text-muted-foreground">Montant:</span>
-                        <p className="font-medium">{formatCurrency(operation.amount_gdes)} {settings.currency_symbol}</p>
+                        <span className="text-black font-semibold">Montant:</span>
+                        <p className="font-bold text-black">{formatCurrency(operation.amount_gdes)} {settings.currency_symbol}</p>
                       </div>
                       <div>
-                        <span className="text-muted-foreground">Cash après:</span>
-                        <p className="font-medium">{formatCurrency(operation.cash_after)} {settings.currency_symbol}</p>
+                        <span className="text-black font-semibold">Cash après:</span>
+                        <p className="font-bold text-black">{formatCurrency(operation.cash_after)} {settings.currency_symbol}</p>
                       </div>
                     </div>
                   </div>

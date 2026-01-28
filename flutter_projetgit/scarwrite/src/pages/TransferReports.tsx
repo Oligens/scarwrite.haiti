@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Calendar, FileText, TrendingUp, Download, Edit, Trash } from "@/lib/lucide-react";
+import { ArrowLeft, Calendar, FileText, TrendingUp, Download, Edit, Trash, Printer } from "@/lib/lucide-react";
 import {
   getOperationsByDateRange,
   getSettings,
