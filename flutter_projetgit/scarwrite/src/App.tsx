@@ -1,10 +1,11 @@
-import React from "react";
+import React, { useState, useEffect, Component, ReactNode, ErrorInfo } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { Component, ReactNode, ErrorInfo } from "react";
 import LoadingSplash from "./components/LoadingSplash";
+
+// Pages existantes
 import Welcome from "./pages/Welcome";
 import Dashboard from "./pages/Dashboard";
 import SalesCalendar from "./pages/SalesCalendar";
@@ -32,6 +33,7 @@ import Clients from "./pages/Clients";
 
 const queryClient = new QueryClient();
 
+// ErrorBoundary amélioré pour capturer les erreurs de Silos
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
   constructor(props: { children: ReactNode }) {
     super(props);
@@ -43,53 +45,65 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('ErrorBoundary caught an error:', error, errorInfo);
+    console.error('CRASH SCARWRITE:', error, errorInfo);
   }
 
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen flex items-center justify-center bg-background p-4">
-          <div className="text-center">
-            <h1 className="text-2xl font-bold text-foreground mb-4">⚠️ Une erreur est survenue</h1>
-            <p className="text-muted-foreground mb-4">{this.state.error?.message}</p>
+        <div className="min-h-screen flex items-center justify-center bg-background p-6">
+          <div className="max-w-md w-full text-center space-y-4">
+            <div className="text-6xl">⚠️</div>
+            <h1 className="text-2xl font-bold">Erreur de Rendu Critique</h1>
+            <p className="text-muted-foreground italic">
+              Le changement d'entité a provoqué une désynchronisation du DOM.
+            </p>
             <button
-              onClick={() => window.location.reload()}
-              className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+              onClick={() => {
+                localStorage.clear(); // Nettoyage de secours
+                window.location.href = "/";
+              }}
+              className="w-full py-3 bg-primary text-primary-foreground rounded-xl font-bold shadow-lg"
             >
-              Recharger l'application
+              Réinitialiser et Reconnecter
             </button>
-            <details className="mt-6 text-left bg-muted p-4 rounded-md">
-              <summary className="cursor-pointer font-semibold text-foreground">Détails de l'erreur</summary>
-              <pre className="mt-2 text-xs text-muted-foreground overflow-auto max-h-48">
-                {this.state.error?.stack}
-              </pre>
-            </details>
           </div>
         </div>
       );
     }
-
     return this.props.children;
   }
 }
 
 const App = () => {
-  const [showSplash, setShowSplash] = React.useState(true);
+  const [showSplash, setShowSplash] = useState(true);
+  const [activeEntity, setActiveEntity] = useState(localStorage.getItem("scarwrite_active_entity") || "SA");
 
-  React.useEffect(() => {
+  useEffect(() => {
     const t = setTimeout(() => setShowSplash(false), 1200);
-    return () => clearTimeout(t);
+    
+    // Listener pour détecter le changement d'entité en temps réel
+    const handleEntityChange = () => {
+      const entity = localStorage.getItem("scarwrite_active_entity") || "SA";
+      setActiveEntity(entity);
+    };
+
+    window.addEventListener("storage", handleEntityChange);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener("storage", handleEntityChange);
+    };
   }, []);
 
   return (
-    <ErrorBoundary>
-      <QueryClientProvider client={queryClient}>
-          <Toaster />
-          <Sonner />
-          {showSplash && <LoadingSplash />}
-          <BrowserRouter>
-            <Routes>
+    <QueryClientProvider client={queryClient}>
+      {/* La clé activeEntity ici force React à détruire/reconstruire l'arbre DOM proprement */}
+      <ErrorBoundary key={activeEntity}>
+        <Toaster />
+        <Sonner />
+        {showSplash && <LoadingSplash />}
+        <BrowserRouter>
+          <Routes>
             <Route path="/" element={<Welcome />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/calendar" element={<SalesCalendar />} />
@@ -109,17 +123,15 @@ const App = () => {
             <Route path="/transfers/reports" element={<TransferReports />} />
             <Route path="/transfers/reports/month/:monthYear" element={<TransferMonthlyReport />} />
             <Route path="/transfers/reports/annual/:year" element={<TransferAnnualReport />} />
-            {/* Nouvelles pages pour entités sociales */}
             <Route path="/donations" element={<Donations />} />
             <Route path="/members" element={<Members />} />
             <Route path="/projects" element={<Projects />} />
-            {/* Nouvelles pages pour entreprises */}
             <Route path="/clients" element={<Clients />} />
             <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
-      </QueryClientProvider>
-    </ErrorBoundary>
+          </Routes>
+        </BrowserRouter>
+      </ErrorBoundary>
+    </QueryClientProvider>
   );
 };
 
