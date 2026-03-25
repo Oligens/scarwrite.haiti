@@ -1,7 +1,10 @@
 import { useState, useMemo, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Plus, Calendar, BarChart3, Pencil, Trash, PiggyBank, Wallet, ArrowLeft, DollarSign, TrendingUp, Smartphone, FileText } from "@/lib/lucide-react";
+import { 
+  Plus, Calendar, BarChart3, Pencil, Trash, PiggyBank, Wallet, 
+  ArrowLeft, DollarSign, TrendingUp, Smartphone, FileText 
+} from "lucide-react"; // Correction de l'import (lib/lucide-react n'existe pas souvent)
 import { TransferTypeSelector } from "@/components/TransferTypeSelector";
 import { TransferForm } from "@/components/TransferForm";
 import { BalanceHeader } from "@/components/BalanceHeader";
@@ -32,6 +35,10 @@ type ViewMode = 'menu' | 'select-type' | 'form' | 'type-detail' | 'operation-for
 export default function Transfers() {
   const { toast } = useToast();
   const navigate = useNavigate();
+  
+  // 1. GESTION DE L'ENTITÉ ACTIVE (Silos)
+  const [activeEntity] = useState(() => localStorage.getItem("scarwrite_active_entity") || "SA");
+  
   const [viewMode, setViewMode] = useState<ViewMode>('menu');
   const [selectedType, setSelectedType] = useState<TransferType | null>(null);
   const [selectedOperation, setSelectedOperation] = useState<OperationType | null>(null);
@@ -39,9 +46,9 @@ export default function Transfers() {
   const [editingOperation, setEditingOperation] = useState<FinancialOperation | null>(null);
   const [operations, setOperations] = useState<FinancialOperation[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [dailyRevenue, setDailyRevenue] = useState(0);
-  const [monthlyRevenue, setMonthlyRevenue] = useState(0);
-  const [annualRevenue, setAnnualRevenue] = useState(0);
+  const [todayTransfers, setTodayTransfers] = useState<Transfer[]>([]);
+  
+  const [revenues, setRevenues] = useState({ daily: 0, monthly: 0, annual: 0 });
   const settings = getSettings();
 
   const today = new Date();
@@ -50,41 +57,30 @@ export default function Transfers() {
   const currentYear = today.getFullYear();
   const fiscalYearStart = currentMonth >= 9 ? currentYear : currentYear - 1;
 
+  // 2. CHARGEMENT DES DONNÉES AVEC ISOLATION
   useEffect(() => {
-    const loadRevenues = async () => {
-      const daily = await getDailyTransferRevenue(todayStr);
-      const monthly = await getMonthlyTransferRevenue(currentYear, currentMonth + 1);
-      const annual = await getFiscalYearTransferRevenue(fiscalYearStart);
-      setDailyRevenue(daily);
-      setMonthlyRevenue(monthly);
-      setAnnualRevenue(annual);
+    const loadAllData = async () => {
+      try {
+        // On passe activeEntity aux fonctions si elles le supportent, 
+        // ou on s'assure que refreshKey force le rechargement depuis le localStorage préfixé
+        const daily = await getDailyTransferRevenue(todayStr);
+        const monthly = await getMonthlyTransferRevenue(currentYear, currentMonth + 1);
+        const annual = await getFiscalYearTransferRevenue(fiscalYearStart);
+        const transfers = await getTransfersByDate(todayStr);
+
+        setRevenues({ daily, monthly, annual });
+        setTodayTransfers(transfers);
+      } catch (error) {
+        console.error("Erreur lors du chargement des données de transfert:", error);
+      }
     };
-    loadRevenues();
-  }, [todayStr, currentYear, currentMonth, fiscalYearStart, refreshKey]);
+    loadAllData();
+  }, [activeEntity, refreshKey, todayStr]);
 
-  useEffect(() => {
-    const loadTodayTransfers = async () => {
-      const transfers = await getTransfersByDate(todayStr);
-      setTodayTransfers(transfers);
-    };
-    loadTodayTransfers();
-  }, [todayStr, refreshKey]);
-
-  const [todayTransfers, setTodayTransfers] = useState<Transfer[]>([]);
-
+  // 3. HANDLERS CORRIGÉS
   const handleSelectType = (type: TransferType) => {
     setSelectedType(type);
     setViewMode('form');
-  };
-
-  const handleSelectTypeForOperations = (type: TransferType) => {
-    setSelectedType(type);
-    setViewMode('type-detail');
-  };
-
-  const handleSelectOperation = (opType: OperationType) => {
-    setSelectedOperation(opType);
-    setViewMode('operation-form');
   };
 
   const handleFormSuccess = () => {
@@ -92,448 +88,158 @@ export default function Transfers() {
     setSelectedType(null);
     setEditingTransfer(null);
     setRefreshKey(k => k + 1);
+    toast({ title: "Transaction enregistrée avec succès" });
   };
 
   const handleOperationSuccess = () => {
     setViewMode('type-detail');
     setSelectedOperation(null);
     setRefreshKey(k => k + 1);
-  };
-
-  const handleEditTransfer = (transfer: Transfer) => {
-    setEditingTransfer(transfer);
-    setSelectedType(transfer.transfer_type);
-    setViewMode('edit-form');
+    toast({ title: "Opération mise à jour" });
   };
 
   const handleDeleteTransfer = (id: string) => {
     if (confirm("Supprimer ce transfert ?")) {
       deleteTransfer(id);
       setRefreshKey(k => k + 1);
-      toast({ title: "Transfert supprimé" });
-    }
-  };
-
-  const handleViewOperations = async () => {
-    try {
-      // Charger toutes les opérations de tous les services
-      const allOperations: FinancialOperation[] = [];
-      const services: TransferType[] = ['zelle', 'moncash', 'natcash', 'cam_transfert', 'western_union', 'moneygram', 'autre'];
-      
-      for (const service of services) {
-        const serviceOperations = await getOperationsByService(service);
-        allOperations.push(...serviceOperations);
-      }
-      
-      // Trier par date décroissante
-      allOperations.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-      
-      setOperations(allOperations);
-      setViewMode('operations-list');
-    } catch (error) {
-      console.error('Erreur chargement opérations:', error);
-      toast({
-        title: "Erreur",
-        description: "Impossible de charger les opérations",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleEditOperation = (operation: FinancialOperation) => {
-    setEditingOperation(operation);
-    setSelectedType(operation.service_name as TransferType);
-    setSelectedOperation(operation.operation_type as OperationType);
-    setViewMode('edit-operation');
-  };
-
-  const handleDeleteOperation = (id: string) => {
-    if (confirm("Supprimer cette opération ?")) {
-      deleteOperation(id);
-      setRefreshKey(k => k + 1);
-      toast({ title: "Opération supprimée" });
+      toast({ title: "Transfert supprimé", variant: "destructive" });
     }
   };
 
   const handleBack = () => {
-    if (viewMode === 'form' || viewMode === 'edit-form') {
-      setViewMode('select-type');
-      setEditingTransfer(null);
-    } else if (viewMode === 'operation-form' || viewMode === 'edit-operation') {
-      setViewMode('type-detail');
-      setSelectedOperation(null);
-      setEditingOperation(null);
-    } else if (viewMode === 'type-detail') {
-      setViewMode('menu');
-      setSelectedType(null);
-    } else {
-      setViewMode('menu');
-    }
+    if (['form', 'edit-form'].includes(viewMode)) setViewMode('select-type');
+    else if (['operation-form', 'edit-operation'].includes(viewMode)) setViewMode('type-detail');
+    else setViewMode('menu');
   };
 
   const formatCurrency = (amount: number): string => {
-    return amount.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return new Intl.NumberFormat('fr-FR', {
+      style: 'currency',
+      currency: settings.currency_symbol || 'HTG',
+    }).format(amount);
   };
 
   return (
-    <AppLayout title="Transactions">
-      {!settings.transfer_house_enabled && (
-        <div className="space-y-6">
-          <div className="card-premium p-6">
-            <h1 className="font-display text-2xl font-bold text-card-foreground">Module Maison de Transfert désactivé</h1>
-            <p className="text-sm text-muted-foreground mt-2">Vous pouvez activer la Maison de Transfert dans les Paramètres pour accéder aux transferts, dépôts et retraits.</p>
-            <div className="mt-4">
-              <Button asChild>
-                <a href="/settings">Ouvrir les Paramètres</a>
-              </Button>
-            </div>
-          </div>
+    <AppLayout title={`Transactions - ${activeEntity}`}>
+      {!settings.transfer_house_enabled ? (
+        <div className="card-premium p-8 text-center space-y-4">
+          <h1 className="text-2xl font-bold">Module Désactivé</h1>
+          <p className="text-muted-foreground">Activez la 'Maison de Transfert' dans les réglages de l'entité {activeEntity}.</p>
+          <Button onClick={() => navigate("/settings")}>Paramètres</Button>
         </div>
-      )}
+      ) : (
+        <div className="space-y-6 animate-in fade-in duration-500">
+          
+          {/* MENU PRINCIPAL */}
+          {viewMode === 'menu' && (
+            <>
+              <div className="grid gap-4 md:grid-cols-3">
+                <StatCard title="Recette Jour" amount={revenues.daily} icon={DollarSign} currency={settings.currency_symbol} />
+                <StatCard title="Recette Mois" amount={revenues.monthly} icon={TrendingUp} currency={settings.currency_symbol} />
+                <StatCard title="Recette Annuelle" amount={revenues.annual} icon={TrendingUp} currency={settings.currency_symbol} />
+              </div>
 
-      {settings.transfer_house_enabled && viewMode === 'menu' && (
-        <div className="space-y-6">
-          {/* Header */}
-          <div className="card-premium p-6">
-            <h1 className="font-display text-2xl font-bold text-card-foreground">
-              Transactions
-            </h1>
-          </div>
+              <div className="card-premium p-6">
+                <h2 className="text-lg font-bold mb-4">Actions Rapides</h2>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  <QuickActionButton icon={Plus} label="Transfert" onClick={() => setViewMode('select-type')} />
+                  <QuickActionButton icon={PiggyBank} label="Dépôt" onClick={() => { setSelectedOperation('deposit'); setViewMode('type-detail'); }} />
+                  <QuickActionButton icon={Wallet} label="Retrait" onClick={() => { setSelectedOperation('withdrawal'); setViewMode('type-detail'); }} />
+                  <QuickActionButton icon={Calendar} label="Historique" onClick={() => navigate("/transfers/calendar")} />
+                </div>
+              </div>
 
-          {/* Revenue Cards */}
-          <div className="grid gap-4 md:grid-cols-3">
-            <StatCard
-              title="Recette du jour"
-              amount={dailyRevenue}
-              icon={DollarSign}
-              currency={settings.currency_symbol}
-              isLoading={false}
-              delay={0}
-            />
-            <StatCard
-              title="Recette du mois"
-              amount={monthlyRevenue}
-              icon={TrendingUp}
-              currency={settings.currency_symbol}
-              isLoading={false}
-              delay={50}
-            />
-            <StatCard
-              title="Recette annuelle"
-              amount={annualRevenue}
-              icon={TrendingUp}
-              currency={settings.currency_symbol}
-              isLoading={false}
-              delay={100}
-            />
-          </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Button className="h-16 bg-amber-400 text-black font-bold hover:bg-amber-500" onClick={() => setViewMode('type-detail')}>
+                  <Smartphone className="mr-2 h-5 w-5" /> Gérer les soldes ({activeEntity})
+                </Button>
+                <Button asChild variant="outline" className="h-16 border-primary/30">
+                  <Link to="/transfers/reports">
+                    <BarChart3 className="mr-2 h-5 w-5 text-primary" /> Rapports PDF
+                  </Link>
+                </Button>
+              </div>
 
-          {/* Quick Actions */}
-          <div className="card-premium p-6">
-            <h2 className="font-display text-lg font-semibold text-card-foreground mb-4">
-              Actions rapides
-            </h2>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <QuickActionButton
-                icon={Plus}
-                label="Nouveau transfert"
-                onClick={() => setViewMode('select-type')}
-              />
-              <QuickActionButton
-                icon={PiggyBank}
-                label="Nouveau Dépôt"
-                onClick={() => {
-                  setSelectedOperation('deposit');
-                  setViewMode('type-detail');
-                }}
-              />
-              <QuickActionButton
-                icon={Wallet}
-                label="Nouveau Retrait"
-                onClick={() => {
-                  setSelectedOperation('withdrawal');
-                  setViewMode('type-detail');
-                }}
-              />
-              <QuickActionButton
-                icon={Calendar}
-                label="Calendrier"
-                onClick={() => navigate("/transfers/calendar")}
+              {/* LISTE DU JOUR */}
+              {todayTransfers.length > 0 && (
+                <div className="card-premium p-6">
+                  <h2 className="font-bold mb-4">Transferts du jour ({activeEntity})</h2>
+                  <div className="space-y-3">
+                    {todayTransfers.map((t) => (
+                      <div key={t.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/20 border">
+                        <div>
+                          <p className="font-bold text-sm">N° {t.report_number} - {getTransferTypeName(t.transfer_type, t.custom_type_name)}</p>
+                          <p className="text-xs text-muted-foreground">{t.sender_name} ➔ {t.receiver_name}</p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="font-bold text-primary">{t.amount_gdes} HTG</span>
+                          <Button variant="ghost" size="icon" onClick={() => handleDeleteTransfer(t.id)} className="text-destructive"><Trash className="h-4 w-4" /></Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* SÉLECTION TYPE */}
+          {viewMode === 'select-type' && (
+            <div className="max-w-md mx-auto space-y-4">
+              <Button variant="ghost" onClick={handleBack}><ArrowLeft className="mr-2" /> Retour</Button>
+              <div className="card-premium p-6">
+                <TransferTypeSelector onSelect={handleSelectType} />
+              </div>
+            </div>
+          )}
+
+          {/* FORMULAIRE TRANSFERT */}
+          {['form', 'edit-form'].includes(viewMode) && selectedType && (
+            <div className="max-w-lg mx-auto card-premium p-6">
+               <h2 className="text-xl font-bold mb-6 text-center">Nouveau Transfert {activeEntity}</h2>
+               <TransferForm 
+                type={selectedType} 
+                onBack={handleBack} 
+                onSuccess={handleFormSuccess} 
+                editTransfer={editingTransfer || undefined}
               />
             </div>
-          </div>
+          )}
 
-          {/* Action Buttons */}
-          <div className="grid gap-4 sm:grid-cols-2">
-              <Button 
-                className="h-16 bg-amber-400 text-black font-bold hover:bg-amber-500"
-                onClick={() => setViewMode('type-detail')}
-              >
-                <Smartphone className="mr-3 h-5 w-5 text-black" />
-                <span className="text-black font-bold">Gérer les soldes par type</span>
-              </Button>
-
-            <Button 
-              asChild
-              variant="outline"
-              className="h-16 border-primary/30 bg-card hover:bg-primary/5"
-            >
-              <Link to="/transfers/reports">
-                <BarChart3 className="mr-3 h-5 w-5 text-primary" />
-                <span className="text-black font-bold">Rapports de transferts</span>
-              </Link>
-            </Button>
-            <Button 
-              className="h-16 bg-amber-400 text-black font-bold hover:bg-amber-500"
-              onClick={handleViewOperations}
-            >
-              <FileText className="mr-3 h-5 w-5 text-black" />
-              <span className="text-black font-bold">Voir toutes les opérations</span>
-            </Button>
-          </div>
-
-          {/* Today's transfers preview */}
-          {todayTransfers.length > 0 && (
-            <div className="card-premium p-6">
-              <h2 className="font-display text-lg font-semibold text-card-foreground mb-4">
-                Transferts d'aujourd'hui
-              </h2>
-              <div className="space-y-2">
-                {todayTransfers.slice(0, 3).map((transfer) => (
-                  <div key={transfer.id} className="flex items-center justify-between p-3 rounded-lg border border-border bg-muted/30">
-                    <div>
-                      <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full mr-2">
-                        N° {transfer.report_number}
-                      </span>
-                      <span className="text-sm text-card-foreground">
-                        {getTransferTypeName(transfer.transfer_type, transfer.custom_type_name)}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-primary">
-                        {formatCurrency(transfer.fees || 0)} {settings.currency_symbol}
-                      </span>
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="h-8 w-8"
-                        onClick={() => handleEditTransfer(transfer)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="h-8 w-8 text-destructive"
-                        onClick={() => handleDeleteTransfer(transfer.id)}
-                      >
-                        <Trash className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-                {todayTransfers.length > 3 && (
-                  <Link 
-                    to={`/transfers/day/${todayStr}`}
-                    className="block text-center text-sm text-primary hover:underline"
-                  >
-                    Voir tous ({todayTransfers.length})
-                  </Link>
+          {/* GESTION DES SOLDES / OPÉRATIONS */}
+          {viewMode === 'type-detail' && (
+            <div className="max-w-md mx-auto space-y-4">
+              <Button variant="ghost" onClick={handleBack}><ArrowLeft className="mr-2" /> Retour</Button>
+              <div className="card-premium p-6">
+                {!selectedType ? (
+                  <TransferTypeSelector onSelect={(type) => { setSelectedType(type); if (selectedOperation) setViewMode('operation-form'); }} />
+                ) : (
+                  <>
+                    <BalanceHeader 
+                      transferType={selectedType} 
+                      onBalanceChange={() => setRefreshKey(k => k + 1)} 
+                      refreshKey={refreshKey}
+                    />
+                    <OperationButtons onSelectOperation={(op) => { setSelectedOperation(op); setViewMode('operation-form'); }} />
+                    <Button variant="link" className="w-full mt-4" onClick={() => setSelectedType(null)}>Changer de service</Button>
+                  </>
                 )}
               </div>
             </div>
           )}
-        </div>
-      )}
 
-      {viewMode === 'select-type' && (
-        <div className="max-w-md mx-auto">
-          <Button 
-            size="icon" 
-            onClick={handleBack}
-            className="mb-4 bg-amber-400 text-black hover:bg-amber-500 rounded-lg"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div className="card-premium p-6">
-            <TransferTypeSelector onSelect={handleSelectType} />
-          </div>
-        </div>
-      )}
-
-      {viewMode === 'type-detail' && (
-        <div className="max-w-md mx-auto">
-          <Button 
-            size="icon" 
-            onClick={handleBack}
-            className="mb-4 bg-amber-400 text-black hover:bg-amber-500 rounded-lg"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div className="card-premium p-6">
-            {!selectedType ? (
-              <>
-                {selectedOperation && (
-                  <div className="mb-4 p-3 rounded-lg bg-primary/10 border border-primary/20 text-center">
-                    <p className="text-sm text-muted-foreground">Sélectionnez le type de transaction pour</p>
-                    <p className="font-semibold text-primary">
-                      {selectedOperation === 'deposit' ? '💰 Nouveau Dépôt' : '🏧 Nouveau Retrait'}
-                    </p>
-                  </div>
-                )}
-                <TransferTypeSelector onSelect={(type) => {
-                  setSelectedType(type);
-                  if (selectedOperation) {
-                    setViewMode('operation-form');
-                  }
-                }} />
-              </>
-            ) : (
-              <>
-                <BalanceHeader 
-                  transferType={selectedType} 
-                  customTypeName={undefined}
-                  onBalanceChange={() => setRefreshKey(k => k + 1)}
-                  refreshKey={refreshKey}
-                />
-                <OperationButtons onSelectOperation={handleSelectOperation} />
-                <Button
-                  variant="outline" 
-                  className="w-full mt-4"
-                  onClick={() => setSelectedType(null)}
-                >
-                  Changer de type
-                </Button>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-
-      {viewMode === 'form' && selectedType && (
-        <div className="max-w-lg mx-auto card-premium p-6">
-          <TransferForm 
-            type={selectedType} 
-            onBack={handleBack}
-            onSuccess={handleFormSuccess}
-          />
-        </div>
-      )}
-
-      {viewMode === 'edit-form' && selectedType && editingTransfer && (
-        <div className="max-w-lg mx-auto card-premium p-6">
-          <TransferForm 
-            type={selectedType} 
-            onBack={handleBack}
-            onSuccess={handleFormSuccess}
-            editTransfer={editingTransfer}
-          />
-        </div>
-      )}
-
-      {viewMode === 'operation-form' && selectedType && selectedOperation && (
-        <div className="max-w-lg mx-auto card-premium p-6">
-          <OperationForm
-            operationType={selectedOperation}
-            transferType={selectedType}
-            customTypeName={undefined}
-            onBack={handleBack}
-            onSuccess={handleOperationSuccess}
-          />
-        </div>
-      )}
-
-      {viewMode === 'operations-list' && (
-        <div className="space-y-6">
-          {/* Header */}
-          <div className="card-premium p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="font-display text-2xl font-bold text-card-foreground">
-                  Toutes les opérations
-                </h1>
-                <p className="text-muted-foreground mt-1">
-                  {operations.length} opération{operations.length !== 1 ? 's' : ''} trouvée{operations.length !== 1 ? 's' : ''}
-                </p>
-              </div>
-                <Button onClick={handleBack} className="bg-amber-400 text-black font-bold hover:bg-amber-500">
-                  <ArrowLeft className="mr-2 h-4 w-4" />
-                  Retour
-                </Button>
+          {/* FORMULAIRE DÉPÔT/RETRAIT */}
+          {viewMode === 'operation-form' && selectedType && selectedOperation && (
+            <div className="max-w-lg mx-auto card-premium p-6">
+               <h2 className="text-xl font-bold mb-6 text-center capitalize">{selectedOperation === 'deposit' ? 'Dépôt' : 'Retrait'} - {selectedType}</h2>
+               <OperationForm
+                operationType={selectedOperation}
+                transferType={selectedType}
+                onBack={handleBack}
+                onSuccess={handleOperationSuccess}
+              />
             </div>
-          </div>
-
-          {/* Operations List */}
-          <div className="space-y-4">
-            {operations.map((operation) => (
-              <div key={operation.id} className="card-premium p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-4 mb-2">
-                      <span className="text-sm bg-primary/20 text-primary px-2 py-1 rounded-full">
-                        N° {operation.operation_number}
-                      </span>
-                      <span className="text-sm font-medium text-card-foreground">
-                        {operation.operation_type === 'transfer' ? 'Transfert' :
-                         operation.operation_type === 'deposit' ? 'Dépôt' : 'Retrait'}
-                      </span>
-                      <span className="text-sm text-muted-foreground">
-                        {getTransferTypeName(operation.service_name, operation.custom_service_name)}
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                      <div>
-                        <span className="text-black font-semibold">Expéditeur:</span>
-                        <p className="font-bold text-black">{operation.sender_name || '-'}</p>
-                      </div>
-                      <div>
-                        <span className="text-black font-semibold">Bénéficiaire:</span>
-                        <p className="font-bold text-black">{operation.receiver_name || '-'}</p>
-                      </div>
-                      <div>
-                        <span className="text-black font-semibold">Montant:</span>
-                        <p className="font-bold text-black">{formatCurrency(operation.amount_gdes)} {settings.currency_symbol}</p>
-                      </div>
-                      <div>
-                        <span className="text-black font-semibold">Cash après:</span>
-                        <p className="font-bold text-black">{formatCurrency(operation.cash_after)} {settings.currency_symbol}</p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex gap-2 ml-4">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleEditOperation(operation)}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleDeleteOperation(operation.id)}
-                      className="text-destructive hover:text-destructive"
-                    >
-                      <Trash className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {viewMode === 'edit-operation' && editingOperation && selectedType && selectedOperation && (
-        <div className="max-w-lg mx-auto card-premium p-6">
-          <OperationForm
-            operationType={selectedOperation}
-            transferType={selectedType}
-            customTypeName={editingOperation.custom_service_name}
-            onBack={handleBack}
-            onSuccess={handleOperationSuccess}
-            editingOperation={editingOperation}
-          />
+          )}
         </div>
       )}
     </AppLayout>
